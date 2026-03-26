@@ -1,0 +1,2244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>School Hub</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg: #f2f2f7;
+            --card: #ffffff;
+            --accent: #007aff;
+            --secondary: #8e8e93;
+            --drawer-bg: rgba(255, 255, 255, 0.85);
+            --success: #34c759;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg); margin: 0; padding: 20px 20px 40px 20px;
+            color: #000; -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+        }
+
+        /* ШАПКА */
+        .header { display: flex; align-items: center; gap: 15px; margin-bottom: 25px; }
+        .menu-toggle { font-size: 26px; background: none; border: none; cursor: pointer; padding: 0; }
+        .page-title { font-size: 28px; font-weight: 800; margin: 0; }
+        
+        /* БОКОВОЕ МЕНЮ */
+        .sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: 280px;
+            background: var(--drawer-bg); backdrop-filter: blur(20px);
+            z-index: 1000; transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 40px 20px; box-shadow: 10px 0 30px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+        .sidebar.open { transform: translateX(0); }
+        .nav-item {
+            display: flex; align-items: center; padding: 14px; margin-bottom: 5px;
+            border-radius: 12px; color: #000; text-decoration: none; font-weight: 600;
+            cursor: pointer;
+        }
+        .nav-item.active { color: var(--accent); background: rgba(0,122,255,0.1); }
+        .nav-item:active { background: rgba(0,0,0,0.05); }
+        .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.2); display: none; z-index: 999; }
+
+        /* ЭКРАНЫ */
+        .screen {
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .screen.active {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ПРОГРЕСС ЧЕТВЕРТИ */
+        .term-section { margin-bottom: 25px; }
+        .progress-track { height: 6px; background: #e5e5ea; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { height: 100%; background: var(--accent); width: 65%; border-radius: 3px; }
+        .progress-info { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--secondary); }
+
+        /* КАРТОЧКИ */
+        .section-title { font-weight: 700; font-size: 17px; margin: 0 0 12px 5px; color: #1c1c1e; }
+        
+        .white-card {
+            background: var(--card); border-radius: 22px; padding: 18px;
+            margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        .prep-card {
+            background: linear-gradient(135deg, #1c1c1e 0%, #3a3a3c 100%);
+            color: white; border-radius: 22px; padding: 20px;
+            margin-bottom: 20px; cursor: pointer; transition: transform 0.2s;
+        }
+        .prep-card:active { transform: scale(0.97); }
+        .item-tag { 
+            display: inline-block; background: rgba(255,255,255,0.12); 
+            padding: 6px 12px; border-radius: 10px; font-size: 11px; margin-right: 5px; margin-top: 10px;
+        }
+
+        .deadline-card {
+            background: var(--warning-bg); border-left: 4px solid #ffc107;
+            border-radius: 16px; padding: 14px; margin-bottom: 20px;
+            display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--warning-text);
+        }
+
+        /* СПИСОК УСПЕХОВ */
+        .subject-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid #f2f2f7; }
+        .subject-row:last-child { border: none; }
+        .badge { background: rgba(52, 199, 89, 0.1); color: var(--success); padding: 4px 8px; border-radius: 8px; font-weight: 700; }
+
+        /* ЗАМЕТКА */
+        .memo-input {
+            width: 100%; border: none; background: #f2f2f7; padding: 12px;
+            border-radius: 12px; font-family: inherit; outline: none; box-sizing: border-box;
+        }
+
+        /* МОДАЛКА */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); display: none; z-index: 2000; align-items: flex-end;
+        }
+        .modal {
+            background: white; width: 100%; border-radius: 28px 28px 0 0;
+            padding: 25px 20px 40px 20px; transform: translateY(100%);
+            transition: transform 0.3s ease-out; box-sizing: border-box;
+        }
+        .modal.show { transform: translateY(0); }
+        .lesson-line { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 0.5px solid #eee; font-size: 15px; }
+
+        /* РАСПИСАНИЕ */
+        .day-card {
+            background: var(--card); border-radius: 16px; margin-bottom: 15px;
+            overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .day-header {
+            padding: 16px; font-weight: 700; font-size: 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; background: var(--card);
+        }
+        .day-content {
+            display: none; padding: 0 16px 16px 16px; border-top: 1px solid #f2f2f7;
+        }
+        .day-content.open { display: block; }
+        .lesson-item {
+            padding: 12px 0; border-bottom: 1px solid #f2f2f7;
+        }
+        .lesson-item:last-child { border-bottom: none; }
+        .lesson-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+        .hw-box {
+            display: flex; align-items: center; gap: 10px;
+            background: #f9f9f9; padding: 10px; border-radius: 10px;
+        }
+        .hw-text { font-size: 13px; color: #555; flex: 1; outline: none; padding: 2px; border-radius: 4px; transition: background 0.2s; }
+        .hw-text[contenteditable="true"]:focus, .lesson-title[contenteditable="true"]:focus { background: rgba(0,122,255,0.05); }
+        .lesson-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; outline: none; padding: 2px; border-radius: 4px; transition: background 0.2s; }
+        .hw-checkbox {
+            width: 20px; height: 20px; accent-color: var(--success);
+        }
+
+        /* ОЦЕНКИ */
+        .grade-card { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+        .grade-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .grade-title { font-weight: 700; font-size: 16px; outline: none; padding: 2px 4px; border-radius: 4px; transition: background 0.2s; }
+        .grade-title[contenteditable="true"]:focus { background: rgba(0,122,255,0.05); }
+        .grade-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .grade-pill { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: white; cursor: pointer; transition: transform 0.1s; }
+        .grade-pill:active { transform: scale(0.9); }
+        .grade-pill.val-10, .grade-pill.val-9 { background: #34c759; }
+        .grade-pill.val-8, .grade-pill.val-7 { background: #007aff; }
+        .grade-pill.val-6, .grade-pill.val-5, .grade-pill.val-4 { background: #ff9500; }
+        .grade-pill.val-3, .grade-pill.val-2, .grade-pill.val-1 { background: #ff3b30; }
+        .delete-subject-btn { background: none; border: none; color: #ff3b30; font-size: 18px; cursor: pointer; padding: 0; margin-left: 10px; }
+        .add-grade-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px dashed #c7c7cc; background: transparent; color: #c7c7cc; font-size: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .add-subject-btn { width: 100%; padding: 14px; border-radius: 16px; border: none; background: rgba(0,122,255,0.1); color: var(--accent); font-weight: 700; font-size: 15px; cursor: pointer; margin-bottom: 20px; }
+        
+        /* ИСТОРИЯ */
+        .history-input-area { display: flex; gap: 10px; margin-bottom: 20px; }
+        .history-date { flex: 1; border: none; padding: 14px; border-radius: 16px; background: var(--card); font-family: inherit; outline: none; font-size: 15px; }
+        .btn-primary { background: var(--accent); color: white; border: none; padding: 0 20px; border-radius: 16px; font-weight: 700; cursor: pointer; }
+        .history-year { font-size: 32px; font-weight: 800; color: var(--accent); margin-bottom: 10px; }
+        .history-text { font-size: 15px; line-height: 1.5; color: #333; }
+        .loader { display: none; text-align: center; padding: 20px; color: var(--secondary); font-weight: 600; }
+
+        /* КАСТОМНЫЕ ДИАЛОГИ */
+        .dialog-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); display: none; z-index: 3000;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .dialog-box {
+            background: white; width: 100%; max-width: 320px; border-radius: 20px;
+            padding: 20px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transform: scale(0.9); opacity: 0; transition: all 0.2s; display: none;
+        }
+        .dialog-box.show { transform: scale(1); opacity: 1; }
+        .dialog-title { font-weight: 700; font-size: 18px; margin-bottom: 10px; }
+        .dialog-text { font-size: 14px; color: var(--secondary); margin-bottom: 20px; }
+        .dialog-buttons { display: flex; gap: 10px; }
+        .dialog-btn { flex: 1; padding: 12px; border-radius: 12px; font-weight: 600; border: none; cursor: pointer; }
+        .dialog-btn.cancel { background: #f2f2f7; color: #000; }
+        .dialog-btn.danger { background: #ff3b30; color: white; }
+
+        .grade-picker-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px; }
+        .grade-picker-btn { padding: 12px 0; border-radius: 10px; border: none; background: #f2f2f7; font-weight: 700; font-size: 16px; cursor: pointer; }
+        .grade-picker-btn:active { background: #e5e5ea; }
+
+        /* NUMPAD */
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .numpad-btn { background: var(--card); border: 1px solid #e5e5ea; border-radius: 16px; padding: 15px; font-size: 24px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .numpad-btn:active { background: #f2f2f7; transform: scale(0.95); }
+        .numpad-btn.action { background: #f2f2f7; font-size: 18px; }
+        .history-display { background: #f2f2f7; border-radius: 16px; padding: 15px; font-size: 24px; font-weight: 700; text-align: center; letter-spacing: 2px; min-height: 28px; margin-bottom: 10px; }
+
+        /* СПРАВОЧНИК */
+        .subject-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+        }
+        .subject-tile {
+            background: var(--card); padding: 20px; border-radius: 20px;
+            text-align: center; font-weight: 700; font-size: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03); cursor: pointer;
+        }
+        .subject-tile:active { transform: scale(0.95); }
+        .rules-list { display: none; }
+        .rule-card {
+            background: var(--card); padding: 16px; border-radius: 16px; margin-bottom: 15px;
+        }
+        .rule-title { font-weight: 700; margin-bottom: 8px; color: var(--accent); }
+        .rule-text { font-size: 14px; line-height: 1.5; color: #333; }
+        .back-btn {
+            background: none; border: none; color: var(--accent); font-weight: 600;
+            font-size: 16px; padding: 0; margin-bottom: 15px; cursor: pointer; display: flex; align-items: center; gap: 5px;
+        }
+
+        /* БИБЛИОТЕКА */
+        .book-card {
+            display: flex; gap: 15px; background: var(--card); padding: 15px;
+            border-radius: 16px; margin-bottom: 15px; align-items: center;
+        }
+        .book-cover {
+            width: 60px; height: 80px; background: #e5e5ea; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; font-size: 24px;
+        }
+        .book-info { flex: 1; }
+        .book-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+        .book-author { font-size: 13px; color: var(--secondary); margin-bottom: 10px; }
+        .btn-open {
+            background: rgba(0,122,255,0.1); color: var(--accent); border: none;
+            padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer;
+        }
+
+        /* ИИ-ПОМОЩНИК */
+        .chat-container {
+            display: flex; flex-direction: column; height: calc(100vh - 120px);
+        }
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding-bottom: 20px; display: flex; flex-direction: column; gap: 15px;
+        }
+        .msg { padding: 12px 16px; border-radius: 18px; max-width: 80%; font-size: 15px; line-height: 1.4; }
+        .msg.ai { background: var(--card); align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg.user { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .chat-input-area {
+            display: flex; gap: 10px; margin-top: auto;
+        }
+        .chat-input {
+            flex: 1; border: none; padding: 14px; border-radius: 20px;
+            background: var(--card); font-family: inherit; outline: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .chat-send {
+            background: var(--accent); color: white; border: none; width: 46px; height: 46px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="menuOverlay" onclick="toggleMenu()"></div>
+<div class="sidebar" id="sidebar">
+    <div style="font-weight: 800; font-size: 22px; margin-bottom: 25px; padding-left: 10px;">School Hub</div>
+    <nav>
+        <div class="nav-item active" onclick="showScreen('home', 'Главная', this)">🏠 Главная</div>
+        <div class="nav-item" onclick="showScreen('schedule', 'Расписание и ДЗ', this)">📅 Расписание и ДЗ</div>
+        <div class="nav-item" onclick="showScreen('grades', 'Мои Оценки', this)">📊 Мои Оценки</div>
+        <div class="nav-item" onclick="showScreen('reference', 'Справочник', this)">📖 Справочник</div>
+        <div class="nav-item" onclick="showScreen('library', 'Библиотека', this)">📚 Библиотека</div>
+        <div class="nav-item" onclick="showScreen('history', 'История (Игра)', this)">📜 История (Игра)</div>
+        <div class="nav-item" onclick="showScreen('geography', 'География (Игра)', this)">🌍 География (Игра)</div>
+        <div class="nav-item" onclick="showScreen('career', 'Профориентация', this)">🧭 Профориентация</div>
+        <div class="nav-item" onclick="showScreen('productivity', 'Продуктивность', this)">⏱️ Продуктивность</div>
+        <div class="nav-item" onclick="showScreen('ai', 'ИИ-Помощник', this)">🤖 ИИ-Помощник</div>
+        <div class="nav-item" onclick="showScreen('todo', 'To-Do Лист', this)">✅ To-Do Лист</div>
+        <div class="nav-item" onclick="showScreen('events', 'Мероприятия', this)">🎉 Мероприятия</div>
+    </nav>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+    <div class="modal" id="scheduleModal" onclick="event.stopPropagation()">
+        <div style="font-weight: 800; font-size: 19px; margin-bottom: 15px; text-align: center;">Завтра • Вторник</div>
+        <div class="lesson-line"><span>1. Геометрия</span><b>08:30</b></div>
+        <div class="lesson-line"><span>2. Английский</span><b>09:25</b></div>
+        <div class="lesson-line"><span>3. Биология</span><b>10:20</b></div>
+        <div class="lesson-line"><span>4. Физкультура</span><b>11:15</b></div>
+        <button onclick="closeModal()" style="width: 100%; margin-top: 20px; padding: 16px; border-radius: 14px; border: none; background: var(--bg); font-weight: 700; cursor: pointer;">Закрыть</button>
+    </div>
+</div>
+
+<div class="dialog-overlay" id="dialogOverlay" onclick="closeDialog()">
+    <div class="dialog-box" id="confirmDialog" onclick="event.stopPropagation()">
+        <div class="dialog-title" id="confirmTitle">Подтверждение</div>
+        <div class="dialog-text" id="confirmText">Вы уверены?</div>
+        <div class="dialog-buttons">
+            <button class="dialog-btn cancel" onclick="closeDialog()">Отмена</button>
+            <button class="dialog-btn danger" id="confirmBtn">Удалить</button>
+        </div>
+    </div>
+
+    <div class="dialog-box" id="promptDialog" onclick="event.stopPropagation()">
+        <div class="dialog-title" id="promptTitle" style="font-size: 16px;">Введите значение</div>
+        <input type="text" id="promptInput" style="width: 100%; padding: 12px; border: 1px solid #e5e5ea; border-radius: 12px; margin-bottom: 20px; font-size: 16px; box-sizing: border-box; outline: none;">
+        <div class="dialog-buttons">
+            <button class="dialog-btn cancel" onclick="closeDialog()">Отмена</button>
+            <button class="dialog-btn" style="background: var(--primary); color: white;" id="promptBtn">ОК</button>
+        </div>
+    </div>
+
+    <div class="dialog-box" id="gradeDialog" onclick="event.stopPropagation()">
+        <div class="dialog-title">Выберите оценку</div>
+        <div class="grade-picker-grid">
+            <button class="grade-picker-btn" onclick="selectGrade(1)">1</button>
+            <button class="grade-picker-btn" onclick="selectGrade(2)">2</button>
+            <button class="grade-picker-btn" onclick="selectGrade(3)">3</button>
+            <button class="grade-picker-btn" onclick="selectGrade(4)">4</button>
+            <button class="grade-picker-btn" onclick="selectGrade(5)">5</button>
+            <button class="grade-picker-btn" onclick="selectGrade(6)">6</button>
+            <button class="grade-picker-btn" onclick="selectGrade(7)">7</button>
+            <button class="grade-picker-btn" onclick="selectGrade(8)">8</button>
+            <button class="grade-picker-btn" onclick="selectGrade(9)">9</button>
+            <button class="grade-picker-btn" onclick="selectGrade(10)">10</button>
+        </div>
+        <button class="dialog-btn cancel" style="width: 100%;" onclick="closeDialog()">Отмена</button>
+    </div>
+</div>
+
+<div class="header">
+    <button class="menu-toggle" onclick="toggleMenu()">≡</button>
+    <h1 class="page-title" id="pageTitle">Главная</h1>
+</div>
+
+<!-- ЭКРАН: ГЛАВНАЯ -->
+<div id="home" class="screen active">
+    <div class="term-section">
+        <div class="progress-info">
+            <span id="homeTermName">ЧЕТВЕРТЬ</span>
+            <span id="homeTermProgress">0% ПРОЙДЕНО</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="homeTermProgressFill" style="width: 0%;"></div></div>
+    </div>
+
+    <div class="white-card" style="margin-bottom: 15px; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);">
+        <div style="font-weight: 700; font-size: 14px; color: var(--secondary); margin-bottom: 5px;">Слово дня 📚</div>
+        <div id="wordOfDayTitle" style="font-weight: 800; font-size: 18px; color: var(--primary); margin-bottom: 5px;">Загрузка...</div>
+        <div id="wordOfDayDesc" style="font-size: 14px; color: #333;">...</div>
+    </div>
+
+    <div class="prep-card" onclick="openModal()">
+        <h2 style="margin:0; font-size:18px;" id="homeLessonsCount">На завтра • 0 уроков</h2>
+        <p style="margin:5px 0 10px 0; font-size:13px; opacity:0.7;">Нажми, чтобы открыть список</p>
+        <div id="homeLessonsTags">
+            <span class="item-tag">Нет уроков</span>
+        </div>
+    </div>
+
+    <div class="deadline-card">
+        <span>📅</span>
+        <span id="homeDeadline">Нет ближайших дедлайнов</span>
+    </div>
+
+    <div class="white-card" style="margin-bottom: 15px;">
+        <div style="font-weight: 700; font-size: 16px; margin-bottom: 10px;">Ближайшие мероприятия 🎉</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;" id="homeEventsList">
+            <div style="display: flex; justify-content: space-between; font-size: 14px; padding: 8px; background: #f9f9f9; border-radius: 8px;">
+                <span>Школьная дискотека</span>
+                <b style="color: var(--primary);">Пт, 18:00</b>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px; padding: 8px; background: #f9f9f9; border-radius: 8px;">
+                <span>Олимпиада по математике</span>
+                <b style="color: var(--primary);">Сб, 10:00</b>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">Твои успехи 🏆</div>
+    <div class="white-card" id="homeGradesContainer">
+        <div style="text-align: center; color: var(--secondary); font-size: 13px;">Добавьте оценки во вкладке "Мои оценки"</div>
+    </div>
+
+    <div class="section-title">Заметка на завтра</div>
+    <div class="white-card">
+        <input type="text" class="memo-input" id="homeMemo" placeholder="Например: сдать реферат..." oninput="saveMemo()">
+    </div>
+
+    <div class="section-title">Слово дня</div>
+    <div class="white-card" style="border: 1px solid rgba(0,122,255,0.1);">
+        <div style="font-weight: 700; font-size: 17px; color: var(--accent);">АЛЬТРУИЗМ</div>
+        <div style="font-size: 13px; margin-top: 6px; color: #333; line-height: 1.4;">Готовность бескорыстно действовать на пользу другим.</div>
+    </div>
+</div>
+
+<!-- ЭКРАН: РАСПИСАНИЕ И ДЗ -->
+<div id="schedule" class="screen">
+    <div class="white-card" style="margin-bottom: 15px;">
+        <div style="font-weight: 700; font-size: 16px; margin-bottom: 10px;">Настройки четвертей 📅</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;" id="termsContainer">
+            <!-- Terms will be generated here -->
+        </div>
+    </div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary); text-align: center;">
+        💡 Нажми на название предмета или задание, чтобы изменить его. Нажми на 🗑️, чтобы удалить.
+    </div>
+    <div id="scheduleContainer"></div>
+    <button class="add-subject-btn" onclick="addScheduleDay()" style="margin-top: 15px;">+ Добавить день</button>
+</div>
+
+<!-- ЭКРАН: МОИ ОЦЕНКИ -->
+<div id="grades" class="screen">
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary); text-align: center;">
+        💡 Нажми на название предмета, чтобы изменить его. Нажми на оценку, чтобы удалить.
+    </div>
+    <div id="gradesContainer"></div>
+    <button class="add-subject-btn" onclick="addSubject()">+ Добавить предмет</button>
+</div>
+
+<!-- ЭКРАН: СПРАВОЧНИК -->
+<div id="reference" class="screen">
+    <div id="ref-categories">
+        <div class="subject-grid">
+            <div class="subject-tile" onclick="openSubject('math')">📐 Математика</div>
+            <div class="subject-tile" onclick="openSubject('physics')">⚡ Физика</div>
+            <div class="subject-tile" onclick="openSubject('russian')">📕 Русский яз.</div>
+            <div class="subject-tile" onclick="openSubject('belarusian')">📗 Белорусский яз.</div>
+            <div class="subject-tile" onclick="openSubject('literature')">📖 Литература</div>
+            <div class="subject-tile" onclick="openSubject('english')">🌍 Английский яз.</div>
+            <div class="subject-tile" onclick="openSubject('history')">📜 История</div>
+            <div class="subject-tile" onclick="openSubject('chemistry')">🧪 Химия</div>
+            <div class="subject-tile" onclick="openSubject('biology')">🌿 Биология</div>
+            <div class="subject-tile" onclick="openSubject('geography')">🗺️ География</div>
+            <div class="subject-tile" onclick="openSubject('informatics')">💻 Информатика</div>
+            <div class="subject-tile" onclick="openSubject('dictionary')" style="background: var(--primary); color: white;">📚 Словарь терминов</div>
+        </div>
+    </div>
+
+    <div id="ref-dictionary" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Метафора (Литература)</div>
+            <div class="rule-text">Скрытое сравнение, перенесение свойств одного предмета на другой на основании их сходства.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Эпитет (Литература)</div>
+            <div class="rule-text">Образное определение, подчеркивающее характерное свойство предмета (например, "золотая осень").</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Валентность (Химия)</div>
+            <div class="rule-text">Способность атомов химических элементов образовывать определенное число химических связей.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Фотосинтез (Биология)</div>
+            <div class="rule-text">Процесс образования органических веществ из углекислого газа и воды на свету при участии хлорофилла.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Алгоритм (Информатика)</div>
+            <div class="rule-text">Точный набор инструкций, описывающих порядок действий исполнителя для решения задачи.</div>
+        </div>
+    </div>
+
+    <div id="ref-math" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Теорема Пифагора</div>
+            <div class="rule-text">В прямоугольном треугольнике квадрат длины гипотенузы равен сумме квадратов длин катетов: <b>c² = a² + b²</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Квадрат суммы и разности</div>
+            <div class="rule-text"><b>(a ± b)² = a² ± 2ab + b²</b><br>Квадрат суммы/разности двух выражений равен квадрату первого ± удвоенное произведение первого на второе + квадрат второго.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Разность квадратов</div>
+            <div class="rule-text"><b>a² - b² = (a - b)(a + b)</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Дискриминант квадратного уравнения</div>
+            <div class="rule-text">Уравнение: ax² + bx + c = 0<br><b>D = b² - 4ac</b><br>Корни: <b>x = (-b ± √D) / 2a</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Площадь круга и длина окружности</div>
+            <div class="rule-text">Площадь: <b>S = πr²</b><br>Длина окружности: <b>C = 2πr</b></div>
+        </div>
+    </div>
+    
+    <div id="ref-physics" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Второй закон Ньютона</div>
+            <div class="rule-text">Ускорение тела прямо пропорционально равнодействующей всех сил, приложенных к телу, и обратно пропорционально его массе: <b>F = m * a</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Закон Ома для участка цепи</div>
+            <div class="rule-text">Сила тока прямо пропорциональна напряжению и обратно пропорциональна сопротивлению: <b>I = U / R</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Кинетическая и потенциальная энергия</div>
+            <div class="rule-text">Кинетическая: <b>Eк = (m * v²) / 2</b><br>Потенциальная (в поле тяжести): <b>Eп = m * g * h</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Плотность вещества</div>
+            <div class="rule-text"><b>ρ = m / V</b> (масса деленная на объем)</div>
+        </div>
+    </div>
+    
+    <div id="ref-russian" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Чередование корней -лаг-/-лож-</div>
+            <div class="rule-text">В корне <b>-лаг-</b> пишется <b>а</b> (предлагать), в корне <b>-лож-</b> пишется <b>о</b> (предложить). Исключение: полог.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Чередование корней -раст-/-ращ-/-рос-</div>
+            <div class="rule-text">Перед <b>ст</b> и <b>щ</b> пишется <b>а</b> (расти, выращенный), перед <b>с</b> пишется <b>о</b> (выросли). Исключения: росток, ростовщик, Ростов, Ростислав, отрасль.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Приставки пре- и при-</div>
+            <div class="rule-text"><b>При-</b>: приближение, присоединение, близость, неполнота действия (приехать, пришить, приморский, приоткрыть).<br><b>Пре-</b>: = "очень" или = "пере-" (предобрый, преградить).</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Н и НН в суффиксах прилагательных</div>
+            <div class="rule-text"><b>НН</b>: в суффиксах -онн-, -енн- (революционный, соломенный) и на стыке морфем (сонный).<br><b>Н</b>: в суффиксах -ин-, -ан-, -ян- (гусиный, кожаный, серебряный). Исключения: стеклянный, оловянный, деревянный.</div>
+        </div>
+    </div>
+
+    <div id="ref-belarusian" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Правапіс Ў (у нескладовага)</div>
+            <div class="rule-text">Пішацца пасля галосных: <b>быў, воўк, пайшоў</b>.<br>Не пішацца пасля зычных, на пачатку сказа, пасля знакаў прыпынку і ў запазычаных словах (універсітэт).</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Апостраф</div>
+            <div class="rule-text">Пішацца пасля цвёрдых зычных (б, в, м, п, ф, з, с, д, т, ж, ч, ш, р) перад е, ё, ю, я, і: <b>аб'ява, сям'я, пад'езд</b>.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Мяккі знак (ь)</div>
+            <div class="rule-text">Пішацца пасля мяккіх зычных (з, с, д, т, ц, л, н) для абазначэння іх мяккасці: <b>дзень, пісьмо, просьба</b>.</div>
+        </div>
+    </div>
+
+    <div id="ref-literature" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Стихотворные размеры</div>
+            <div class="rule-text"><b>Двухсложные:</b><br>Хорей (ударение на 1-й слог: _ _)<br>Ямб (ударение на 2-й слог: _ _́)<br><br><b>Трехсложные:</b><br>Дактиль (_́ _ _)<br>Амфибрахий (_ _́ _)<br>Анапест (_ _ _́)</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Тропы (средства выразительности)</div>
+            <div class="rule-text"><b>Эпитет</b> — образное определение (золотая осень).<br><b>Метафора</b> — скрытое сравнение (море слез).<br><b>Олицетворение</b> — перенос свойств живого на неживое (ветер воет).<br><b>Гипербола</b> — преувеличение.</div>
+        </div>
+    </div>
+
+    <div id="ref-english" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Present Simple (Простое настоящее)</div>
+            <div class="rule-text">Регулярные действия, факты. <br>Утверждение: I/You/We/They <b>play</b>. He/She/It <b>plays</b>.<br>Отрицание: <b>don't / doesn't</b> + V1.<br>Слова-маркеры: usually, always, often, sometimes, every day.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Present Continuous (Настоящее длительное)</div>
+            <div class="rule-text">Действие происходит прямо сейчас.<br>Формула: <b>am/is/are + V-ing</b>.<br>Слова-маркеры: now, at the moment.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Past Simple (Простое прошедшее)</div>
+            <div class="rule-text">Действие завершилось в прошлом.<br>Утверждение: V2 (или V-ed).<br>Отрицание: <b>didn't</b> + V1.<br>Слова-маркеры: yesterday, last week, in 2010, ago.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Неправильные глаголы (Топ-5)</div>
+            <div class="rule-text">
+                be - was/were - been<br>
+                do - did - done<br>
+                go - went - gone<br>
+                have - had - had<br>
+                make - made - made
+            </div>
+        </div>
+    </div>
+
+    <div id="ref-history" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Важные даты (Всемирная история)</div>
+            <div class="rule-text">
+                <b>476 г.</b> — Падение Западной Римской империи.<br>
+                <b>1054 г.</b> — Раскол христианской церкви.<br>
+                <b>1492 г.</b> — Открытие Америки Колумбом.<br>
+                <b>1914-1918 гг.</b> — Первая мировая война.<br>
+                <b>1939-1945 гг.</b> — Вторая мировая война.
+            </div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Важные даты (История Беларуси)</div>
+            <div class="rule-text">
+                <b>862 г.</b> — Первое упоминание Полоцка.<br>
+                <b>1067 г.</b> — Битва на Немиге (упоминание Минска).<br>
+                <b>1385 г.</b> — Кревская уния.<br>
+                <b>1517 г.</b> — Издание первой белорусской книги Ф. Скориной.<br>
+                <b>1569 г.</b> — Люблинская уния (образование Речи Посполитой).
+            </div>
+        </div>
+    </div>
+
+    <div id="ref-chemistry" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Основные кислоты и их соли</div>
+            <div class="rule-text">
+                <b>HCl</b> (соляная) — хлориды<br>
+                <b>H₂SO₄</b> (серная) — сульфаты<br>
+                <b>HNO₃</b> (азотная) — нитраты<br>
+                <b>H₂CO₃</b> (угольная) — карбонаты<br>
+                <b>H₃PO₄</b> (фосфорная) — фосфаты
+            </div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Количество вещества</div>
+            <div class="rule-text"><b>n = m / M</b><br>n — количество вещества (моль)<br>m — масса (г)<br>M — молярная масса (г/моль)</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Число Авогадро</div>
+            <div class="rule-text"><b>N_A = 6.022 × 10²³ моль⁻¹</b><br>Показывает количество частиц в 1 моле вещества.</div>
+        </div>
+    </div>
+
+    <div id="ref-biology" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Строение клетки</div>
+            <div class="rule-text"><b>Ядро</b> — хранение ДНК.<br><b>Митохондрии</b> — энергетические станции (синтез АТФ).<br><b>Рибосомы</b> — синтез белка.<br><b>Хлоропласты</b> — фотосинтез (только у растений).</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Фотосинтез</div>
+            <div class="rule-text">Процесс образования органических веществ из воды и углекислого газа на свету с выделением кислорода.<br><b>6CO₂ + 6H₂O + свет → C₆H₁₂O₆ + 6O₂</b></div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">ДНК и РНК</div>
+            <div class="rule-text"><b>ДНК</b> — двойная спираль, хранит генетическую информацию. Азотистые основания: Аденин, Тимин, Гуанин, Цитозин.<br><b>РНК</b> — одинарная цепь, участвует в синтезе белка (вместо Тимина — Урацил).</div>
+        </div>
+    </div>
+
+    <div id="ref-geography" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Материки (Континенты)</div>
+            <div class="rule-text">Евразия (самый большой), Африка, Северная Америка, Южная Америка, Антарктида, Австралия (самый маленький).</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Океаны</div>
+            <div class="rule-text">Тихий (самый большой и глубокий), Атлантический, Индийский, Южный, Северный Ледовитый (самый маленький).</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Рекорды Земли</div>
+            <div class="rule-text">Самая высокая гора: <b>Эверест (Джомолунгма)</b> — 8848 м.<br>Самая длинная река: <b>Амазонка</b> (или Нил).<br>Самое глубокое озеро: <b>Байкал</b>.<br>Самая большая пустыня: <b>Сахара</b>.</div>
+        </div>
+    </div>
+
+    <div id="ref-informatics" class="rules-list">
+        <button class="back-btn" onclick="closeSubject()">← Назад к предметам</button>
+        <div class="rule-card">
+            <div class="rule-title">Единицы измерения информации</div>
+            <div class="rule-text">
+                1 байт = 8 бит<br>
+                1 Килобайт (КБ) = 1024 байт<br>
+                1 Мегабайт (МБ) = 1024 КБ<br>
+                1 Гигабайт (ГБ) = 1024 МБ<br>
+                1 Терабайт (ТБ) = 1024 ГБ
+            </div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Системы счисления</div>
+            <div class="rule-text"><b>Двоичная</b>: алфавит 0 и 1.<br><b>Десятичная</b>: алфавит от 0 до 9.<br><b>Шестнадцатеричная</b>: алфавит от 0 до 9 и от A до F.</div>
+        </div>
+        <div class="rule-card">
+            <div class="rule-title">Логические операции</div>
+            <div class="rule-text"><b>И (Конъюнкция)</b>: истинно, только если оба условия истинны.<br><b>ИЛИ (Дизъюнкция)</b>: истинно, если хотя бы одно условие истинно.<br><b>НЕ (Инверсия)</b>: меняет значение на противоположное.</div>
+        </div>
+    </div>
+</div>
+
+<!-- ЭКРАН: БИБЛИОТЕКА -->
+<div id="library" class="screen" style="padding: 10px;">
+    <div class="section-title">Электронные учебники</div>
+    
+    <div class="library-filters" id="gradeFilters" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 15px;">
+        </div>
+
+    <div id="booksContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        </div>
+</div>
+
+<!-- ЭКРАН: ИСТОРИЯ (ИГРА) -->
+<div id="history" class="screen">
+    <div class="section-title">Историческая викторина ⏳</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Проверь свои знания истории! Введи правильный год события.
+    </div>
+    <div class="white-card">
+        <div id="historyQuestion" style="font-weight: 700; font-size: 16px; margin-bottom: 15px;">Загрузка...</div>
+        
+        <div class="history-display" id="historyDisplay"></div>
+        
+        <div class="numpad">
+            <button class="numpad-btn" onclick="numpadPress(1)">1</button>
+            <button class="numpad-btn" onclick="numpadPress(2)">2</button>
+            <button class="numpad-btn" onclick="numpadPress(3)">3</button>
+            <button class="numpad-btn" onclick="numpadPress(4)">4</button>
+            <button class="numpad-btn" onclick="numpadPress(5)">5</button>
+            <button class="numpad-btn" onclick="numpadPress(6)">6</button>
+            <button class="numpad-btn" onclick="numpadPress(7)">7</button>
+            <button class="numpad-btn" onclick="numpadPress(8)">8</button>
+            <button class="numpad-btn" onclick="numpadPress(9)">9</button>
+            <button class="numpad-btn action" onclick="numpadClear()">C</button>
+            <button class="numpad-btn" onclick="numpadPress(0)">0</button>
+            <button class="numpad-btn action" style="background: var(--accent); color: white;" onclick="checkHistoryAnswer()">OK</button>
+        </div>
+
+        <div id="historyFeedback" style="margin-top: 15px; font-weight: 600; text-align: center;"></div>
+        <button id="nextQuestionBtn" class="add-subject-btn" style="display: none; margin-top: 15px; margin-bottom: 0;" onclick="loadHistoryQuestion()">Следующий вопрос</button>
+    </div>
+
+    <div class="section-title" style="margin-top: 30px;">Словарь дат 📖</div>
+    <div class="white-card" id="historyDatesList" style="max-height: 300px; overflow-y: auto;">
+        <!-- Dates will be populated here -->
+    </div>
+</div>
+
+<!-- ЭКРАН: ИИ-ПОМОЩНИК -->
+<div id="ai" class="screen">
+    <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+            <div class="msg ai">Привет! Я твой ИИ-помощник. Помочь с домашкой или объяснить сложную тему?</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Напиши свой вопрос...">
+            <button class="chat-send" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+</div>
+
+<!-- ЭКРАН: ГЕОГРАФИЯ (ИГРА) -->
+<div id="geography" class="screen">
+    <div class="section-title">Учить страны 🌍</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Угадай столицу страны или страну по столице!
+    </div>
+    <div class="white-card">
+        <div id="geoQuestion" style="font-weight: 700; font-size: 16px; margin-bottom: 15px; text-align: center;">Загрузка...</div>
+        <div id="geoOptions" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Options will be generated here -->
+        </div>
+        <div id="geoFeedback" style="margin-top: 15px; font-weight: 600; text-align: center; min-height: 20px;"></div>
+        <button id="nextGeoBtn" class="add-subject-btn" style="display: none; margin-top: 15px; margin-bottom: 0;" onclick="loadGeoQuestion()">Следующий вопрос</button>
+    </div>
+</div>
+
+<!-- ЭКРАН: ПРОФОРИЕНТАЦИЯ -->
+<div id="career" class="screen">
+    <div class="section-title">Профориентация 🧭</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Ответь на несколько вопросов, чтобы узнать, какая профессия тебе подходит.
+    </div>
+    <div class="white-card" id="careerTestContainer">
+        <div id="careerQuestion" style="font-weight: 700; font-size: 16px; margin-bottom: 15px; text-align: center;">Готов начать тест?</div>
+        <div id="careerOptions" style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="add-subject-btn" style="margin: 0;" onclick="startCareerTest()">Начать тест</button>
+        </div>
+    </div>
+    <div class="white-card" id="careerResultContainer" style="display: none; text-align: center;">
+        <div style="font-size: 40px; margin-bottom: 10px;" id="careerResultIcon">🎓</div>
+        <div style="font-weight: 800; font-size: 20px; margin-bottom: 10px;" id="careerResultTitle">Результат</div>
+        <div style="font-size: 14px; color: var(--secondary); margin-bottom: 20px;" id="careerResultText">Описание...</div>
+        <button class="add-subject-btn" style="margin: 0;" onclick="startCareerTest()">Пройти заново</button>
+    </div>
+</div>
+
+<!-- ЭКРАН: ПРОДУКТИВНОСТЬ -->
+<div id="productivity" class="screen">
+    <div class="section-title">Продуктивность ⏱️</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Используй таймер Помодоро для концентрации.
+    </div>
+    <div class="white-card" style="text-align: center;">
+        <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 15px;">
+            <div>
+                <label style="font-size: 12px; color: var(--secondary); display: block; margin-bottom: 5px;">Работа (мин)</label>
+                <input type="number" id="workTimeInput" value="25" style="width: 60px; padding: 5px; text-align: center; border: 1px solid #ddd; border-radius: 5px;" onchange="updateTimerSettings()">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--secondary); display: block; margin-bottom: 5px;">Отдых (мин)</label>
+                <input type="number" id="breakTimeInput" value="5" style="width: 60px; padding: 5px; text-align: center; border: 1px solid #ddd; border-radius: 5px;" onchange="updateTimerSettings()">
+            </div>
+        </div>
+        <div id="pomodoroTimer" style="font-size: 60px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -2px; margin: 10px 0 20px 0; color: var(--primary);">25:00</div>
+        <div id="pomodoroStatus" style="font-size: 16px; font-weight: 600; color: var(--secondary); margin-bottom: 20px;">Режим работы</div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+            <button class="add-subject-btn" style="margin: 0; flex: 1;" id="pomodoroStartBtn" onclick="togglePomodoro()">Старт</button>
+            <button class="add-subject-btn" style="margin: 0; flex: 1; background: #f2f2f7; color: #000;" onclick="resetPomodoro()">Сброс</button>
+        </div>
+    </div>
+</div>
+
+<!-- ЭКРАН: TO-DO ЛИСТ -->
+<div id="todo" class="screen">
+    <div class="section-title">Мои задачи ✅</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Добавляй задачи и отмечай выполненные.
+    </div>
+    <div class="white-card">
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="newTodoInput" placeholder="Новая задача..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+            <button onclick="addTodo()" style="background: var(--primary); color: white; border: none; border-radius: 8px; padding: 0 15px; font-weight: bold; cursor: pointer;">+</button>
+        </div>
+        <div id="todoList" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Todos will be generated here -->
+        </div>
+    </div>
+</div>
+
+<!-- ЭКРАН: МЕРОПРИЯТИЯ -->
+<div id="events" class="screen">
+    <div class="section-title">Мероприятия 🎉</div>
+    <div style="margin-bottom: 15px; font-size: 13px; color: var(--secondary);">
+        Добавляй школьные и личные мероприятия. Они будут отображаться на главном экране.
+    </div>
+    <div class="white-card">
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+            <input type="text" id="newEventTitle" placeholder="Название мероприятия..." style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+            <input type="text" id="newEventDate" placeholder="Дата и время (например: Пт, 18:00)" style="padding: 10px; border: 1px solid #ddd; border-radius: 8px; outline: none;">
+            <button onclick="addEvent()" class="add-subject-btn" style="margin: 0;">Добавить мероприятие</button>
+        </div>
+        <div id="eventsList" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Events will be generated here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMemo();
+        renderSchedule();
+        loadGrades();
+        loadHistoryQuestion();
+        initHistoryDates();
+        initLibrary();
+        initGeography();
+        renderTerms();
+        renderTodo();
+        renderEvents();
+        updateWordOfDay();
+        updateHomeData();
+        
+        // Устанавливаем начальные значения таймера из инпутов
+        const workInput = document.getElementById('workTimeInput');
+        if (workInput) {
+            let workMins = parseInt(workInput.value) || 25;
+            pomodoroTime = workMins * 60;
+            updatePomodoroDisplay();
+        }
+    });
+
+    // Навигация
+    function showScreen(screenId, title, navElement) {
+        // Скрываем все экраны
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.remove('active');
+            setTimeout(() => {
+                if(!s.classList.contains('active')) s.style.display = 'none';
+            }, 300);
+        });
+
+        // Показываем нужный
+        const target = document.getElementById(screenId);
+        target.style.display = 'block';
+        setTimeout(() => target.classList.add('active'), 10);
+
+        // Обновляем заголовок
+        document.getElementById('pageTitle').innerText = title;
+
+        // Обновляем активный пункт меню
+        if (navElement) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            navElement.classList.add('active');
+        }
+
+        toggleMenu(); // Закрываем меню
+        vibrate('light');
+    }
+
+    // Меню
+    function toggleMenu() {
+        document.getElementById('sidebar').classList.toggle('open');
+        const overlay = document.getElementById('menuOverlay');
+        overlay.style.display = overlay.style.display === 'block' ? 'none' : 'block';
+        vibrate('light');
+    }
+
+    // Модалка расписания
+    function openModal() {
+        const target = getTargetScheduleDay();
+        const modal = document.getElementById('scheduleModal');
+        if (target && target.day) {
+            let html = `<div style="font-weight: 800; font-size: 19px; margin-bottom: 15px; text-align: center;">${target.prefix} • ${target.day.name}</div>`;
+            if (target.day.lessons.length > 0) {
+                target.day.lessons.forEach((l, i) => {
+                    // Генерируем примерное время начала урока
+                    const startHour = 8 + Math.floor(i * 55 / 60);
+                    const startMin = (30 + i * 55) % 60;
+                    const timeStr = `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+                    html += `<div class="lesson-line"><span>${l.title}</span><b>${timeStr}</b></div>`;
+                });
+            } else {
+                html += `<div style="text-align: center; color: var(--secondary); margin: 20px 0;">Уроков нет 🎉</div>`;
+            }
+            html += `<button onclick="closeModal()" style="width: 100%; margin-top: 20px; padding: 16px; border-radius: 14px; border: none; background: var(--bg); font-weight: 700; cursor: pointer;">Закрыть</button>`;
+            modal.innerHTML = html;
+        }
+
+        document.getElementById('modalOverlay').style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+        vibrate('medium');
+    }
+
+    function closeModal() {
+        document.getElementById('scheduleModal').classList.remove('show');
+        setTimeout(() => document.getElementById('modalOverlay').style.display = 'none', 300);
+    }
+
+    // Расписание аккордеон
+    function toggleDay(dayId) {
+        const content = document.getElementById('day-' + dayId);
+        content.classList.toggle('open');
+        vibrate('light');
+    }
+
+    // Справочник
+    function openSubject(subjId) {
+        document.getElementById('ref-categories').style.display = 'none';
+        document.getElementById('ref-' + subjId).style.display = 'block';
+        vibrate('light');
+    }
+
+    function closeSubject() {
+        document.querySelectorAll('.rules-list').forEach(el => el.style.display = 'none');
+        document.getElementById('ref-categories').style.display = 'block';
+        vibrate('light');
+    }
+
+    // Мои Оценки
+    let gradesData = [];
+
+    function loadGrades() {
+        const saved = localStorage.getItem('schoolHub_grades');
+        if (saved) {
+            gradesData = JSON.parse(saved);
+        } else {
+            gradesData = [
+                { id: 1, name: "Математика", grades: [5, 4, 5] },
+                { id: 2, name: "Русский язык", grades: [4, 4, 3] }
+            ];
+        }
+        renderGrades();
+    }
+
+    function saveGrades() {
+        localStorage.setItem('schoolHub_grades', JSON.stringify(gradesData));
+        updateHomeData();
+    }
+
+    function getTargetScheduleDay() {
+        if (typeof scheduleData === 'undefined' || scheduleData.length === 0) return null;
+
+        const now = new Date();
+        const day = now.getDay(); // 0-6 (Sun-Sat)
+        const hour = now.getHours();
+        const minutes = now.getMinutes();
+        const currentMinutes = hour * 60 + minutes;
+        
+        const daysMap = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+        
+        let targetDayIndex = day;
+        let prefix = "Сегодня";
+
+        const todayName = daysMap[day].toLowerCase();
+        let todaySchedule = scheduleData.find(d => d.name.toLowerCase() === todayName);
+
+        let lessonsOver = false;
+        if (todaySchedule && todaySchedule.lessons.length > 0) {
+            // Уроки начинаются в 8:30, каждый урок с переменой длится примерно 55 минут
+            const endMinutes = 8 * 60 + 30 + todaySchedule.lessons.length * 55;
+            if (currentMinutes > endMinutes) {
+                lessonsOver = true;
+            }
+        } else {
+            // Если сегодня нет уроков, сразу показываем следующий день
+            lessonsOver = true;
+        }
+
+        if (lessonsOver) {
+            targetDayIndex = (day + 1) % 7;
+            prefix = "Завтра";
+        }
+
+        let targetName = daysMap[targetDayIndex].toLowerCase();
+        let targetSchedule = scheduleData.find(d => d.name.toLowerCase() === targetName);
+
+        // Если на завтра нет уроков, ищем ближайший день с уроками
+        let attempts = 0;
+        while ((!targetSchedule || targetSchedule.lessons.length === 0) && attempts < 7) {
+            targetDayIndex = (targetDayIndex + 1) % 7;
+            targetName = daysMap[targetDayIndex].toLowerCase();
+            targetSchedule = scheduleData.find(d => d.name.toLowerCase() === targetName);
+            if (attempts > 0) {
+                prefix = daysMap[targetDayIndex];
+            }
+            attempts++;
+        }
+
+        return { day: targetSchedule, prefix: prefix };
+    }
+
+    function updateHomeData() {
+        // 1. Обновляем успехи (оценки)
+        const homeGradesContainer = document.getElementById('homeGradesContainer');
+        if (homeGradesContainer && typeof gradesData !== 'undefined') {
+            homeGradesContainer.innerHTML = '';
+            let hasGrades = false;
+            gradesData.forEach(subject => {
+                if (subject.grades.length > 0) {
+                    hasGrades = true;
+                    const sum = subject.grades.reduce((a, b) => a + b, 0);
+                    const avg = (sum / subject.grades.length).toFixed(1);
+                    const emoji = getEmoji(subject.name);
+                    homeGradesContainer.innerHTML += `
+                        <div class="subject-row"><span>${emoji} ${subject.name}</span><span class="badge">${avg}</span></div>
+                    `;
+                }
+            });
+            if (!hasGrades) {
+                homeGradesContainer.innerHTML = '<div style="text-align: center; color: var(--secondary); font-size: 13px;">Добавьте оценки во вкладке "Мои оценки"</div>';
+            }
+        }
+
+        // 2. Обновляем расписание на завтра
+        const homeLessonsCount = document.getElementById('homeLessonsCount');
+        const homeLessonsTags = document.getElementById('homeLessonsTags');
+        const homeDeadline = document.getElementById('homeDeadline');
+        
+        if (homeLessonsCount && homeLessonsTags && typeof scheduleData !== 'undefined') {
+            const target = getTargetScheduleDay();
+            if (target && target.day) {
+                const lessons = target.day.lessons;
+                
+                let countText = `${target.prefix} • ${lessons.length} урок${lessons.length === 1 ? '' : (lessons.length > 1 && lessons.length < 5 ? 'а' : 'ов')}`;
+                homeLessonsCount.innerText = countText;
+                
+                homeLessonsTags.innerHTML = '';
+                if (lessons.length > 0) {
+                    lessons.slice(0, 3).forEach(l => {
+                        const emoji = getEmoji(l.title);
+                        homeLessonsTags.innerHTML += `<span class="item-tag">${emoji} ${l.title.replace(/^\d+\.\s*/, '')}</span>`;
+                    });
+                    if (lessons.length > 3) {
+                        homeLessonsTags.innerHTML += `<span class="item-tag">+${lessons.length - 3}</span>`;
+                    }
+                } else {
+                    homeLessonsTags.innerHTML = '<span class="item-tag">Нет уроков</span>';
+                }
+
+                // Ищем ближайший дедлайн (первая невыполненная домашка)
+                let foundDeadline = false;
+                for (let d of scheduleData) {
+                    for (let l of d.lessons) {
+                        if (l.hw && !l.done) {
+                            homeDeadline.innerText = `${d.name}: ${l.title.replace(/^\d+\.\s*/, '')}`;
+                            foundDeadline = true;
+                            break;
+                        }
+                    }
+                    if (foundDeadline) break;
+                }
+                if (!foundDeadline) {
+                    homeDeadline.innerText = 'Нет ближайших дедлайнов';
+                }
+            }
+        }
+
+        // 3. Обновляем мероприятия
+        const homeEventsList = document.getElementById('homeEventsList');
+        if (homeEventsList && typeof eventsData !== 'undefined') {
+            homeEventsList.innerHTML = '';
+            if (eventsData.length > 0) {
+                eventsData.slice(0, 3).forEach(ev => {
+                    homeEventsList.innerHTML += `
+                        <div style="display: flex; justify-content: space-between; font-size: 14px; padding: 8px; background: #f9f9f9; border-radius: 8px;">
+                            <span>${ev.title}</span>
+                            <b style="color: var(--primary);">${ev.date}</b>
+                        </div>
+                    `;
+                });
+            } else {
+                homeEventsList.innerHTML = '<div style="text-align: center; color: var(--secondary); font-size: 13px;">Нет мероприятий</div>';
+            }
+        }
+
+        // 4. Обновляем прогресс четверти
+        const termNameEl = document.getElementById('homeTermName');
+        const termProgressEl = document.getElementById('homeTermProgress');
+        const termProgressFillEl = document.getElementById('homeTermProgressFill');
+        
+        if (termNameEl && termProgressEl && termProgressFillEl && typeof termsData !== 'undefined') {
+            const now = new Date();
+            let currentTerm = null;
+            
+            for (let term of termsData) {
+                const start = new Date(term.start);
+                const end = new Date(term.end);
+                if (now >= start && now <= end) {
+                    currentTerm = term;
+                    break;
+                }
+            }
+            
+            if (currentTerm) {
+                const start = new Date(currentTerm.start);
+                const end = new Date(currentTerm.end);
+                const totalDuration = end - start;
+                const passedDuration = now - start;
+                let progress = Math.round((passedDuration / totalDuration) * 100);
+                if (progress < 0) progress = 0;
+                if (progress > 100) progress = 100;
+                
+                termNameEl.innerText = currentTerm.name.toUpperCase();
+                termProgressEl.innerText = `${progress}% ПРОЙДЕНО`;
+                termProgressFillEl.style.width = `${progress}%`;
+            } else {
+                termNameEl.innerText = 'КАНИКУЛЫ';
+                termProgressEl.innerText = '100% ОТДЫХА';
+                termProgressFillEl.style.width = '100%';
+                termProgressFillEl.style.background = 'var(--success)';
+            }
+        }
+    }
+
+    function renderGrades() {
+        const container = document.getElementById('gradesContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        gradesData.forEach((subject, index) => {
+            const avg = subject.grades.length > 0 
+                ? (subject.grades.reduce((a,b)=>a+b,0) / subject.grades.length).toFixed(1) 
+                : '-';
+            
+            let gradesHtml = subject.grades.map((g, gIndex) => 
+                `<span class="grade-pill val-${g}" onclick="removeGrade(${index}, ${gIndex})">${g}</span>`
+            ).join('');
+
+            container.innerHTML += `
+                <div class="grade-card">
+                    <div class="grade-header">
+                        <div style="display: flex; align-items: center; flex: 1;">
+                            <div class="grade-title" contenteditable="true" onblur="updateSubjectName(${index}, this.innerText)">${subject.name}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="badge">${avg}</span>
+                            <button class="delete-subject-btn" onclick="removeSubject(${index})">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="grade-list">
+                        ${gradesHtml}
+                        <button class="add-grade-btn" onclick="promptAddGrade(${index})">+</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function addSubject() {
+        gradesData.push({ id: Date.now(), name: "Новый предмет", grades: [] });
+        saveGrades();
+        renderGrades();
+        vibrate('light');
+    }
+
+    // Кастомные диалоги
+    let activeSubjectIndex = null;
+    let activeConfirmAction = null;
+    let promptCallback = null;
+
+    function openDialog(dialogId) {
+        document.getElementById('dialogOverlay').style.display = 'flex';
+        document.querySelectorAll('.dialog-box').forEach(d => d.style.display = 'none');
+        const dialog = document.getElementById(dialogId);
+        dialog.style.display = 'block';
+        setTimeout(() => dialog.classList.add('show'), 10);
+        vibrate('medium');
+    }
+
+    function closeDialog() {
+        document.querySelectorAll('.dialog-box').forEach(d => d.classList.remove('show'));
+        setTimeout(() => document.getElementById('dialogOverlay').style.display = 'none', 200);
+    }
+
+    function showCustomPrompt(message, callback) {
+        document.getElementById('promptTitle').innerText = message;
+        const input = document.getElementById('promptInput');
+        input.value = '';
+        promptCallback = callback;
+        openDialog('promptDialog');
+        setTimeout(() => input.focus(), 100);
+        
+        document.getElementById('promptBtn').onclick = () => {
+            const val = input.value.trim();
+            closeDialog();
+            if (promptCallback) promptCallback(val);
+        };
+    }
+
+    function showCustomConfirm(message, callback) {
+        document.getElementById('confirmTitle').innerText = "Подтверждение";
+        document.getElementById('confirmText').innerText = message;
+        activeConfirmAction = callback;
+        document.getElementById('confirmBtn').onclick = () => {
+            if (activeConfirmAction) activeConfirmAction();
+            closeDialog();
+            vibrate('light');
+        };
+        openDialog('confirmDialog');
+    }
+
+    function promptAddGrade(index) {
+        activeSubjectIndex = index;
+        openDialog('gradeDialog');
+    }
+
+    function selectGrade(num) {
+        if (activeSubjectIndex !== null) {
+            gradesData[activeSubjectIndex].grades.push(num);
+            saveGrades();
+            renderGrades();
+            closeDialog();
+            vibrate('success');
+        }
+    }
+
+    function removeGrade(subjIndex, gradeIndex) {
+        document.getElementById('confirmTitle').innerText = "Удалить оценку?";
+        document.getElementById('confirmText').innerText = "Оценка будет удалена безвозвратно.";
+        activeConfirmAction = () => {
+            gradesData[subjIndex].grades.splice(gradeIndex, 1);
+            saveGrades();
+            renderGrades();
+        };
+        document.getElementById('confirmBtn').onclick = () => {
+            if (activeConfirmAction) activeConfirmAction();
+            closeDialog();
+            vibrate('light');
+        };
+        openDialog('confirmDialog');
+    }
+
+    function removeSubject(index) {
+        document.getElementById('confirmTitle').innerText = "Удалить предмет?";
+        document.getElementById('confirmText').innerText = "Предмет и все его оценки будут удалены.";
+        activeConfirmAction = () => {
+            gradesData.splice(index, 1);
+            saveGrades();
+            renderGrades();
+        };
+        document.getElementById('confirmBtn').onclick = () => {
+            if (activeConfirmAction) activeConfirmAction();
+            closeDialog();
+            vibrate('light');
+        };
+        openDialog('confirmDialog');
+    }
+
+    function updateSubjectName(index, newName) {
+        gradesData[index].name = newName;
+        saveGrades();
+    }
+
+    // История (Игра)
+    const historyQuestions = [
+        { q: "В каком году родился В.И. Ленин?", a: 1870 },
+        { q: "В каком году началась Великая Отечественная война?", a: 1941 },
+        { q: "В каком году отменили крепостное право в России?", a: 1861 },
+        { q: "В каком году Юрий Гагарин полетел в космос?", a: 1961 },
+        { q: "В каком году крестили Русь?", a: 988 },
+        { q: "В каком году основали Санкт-Петербург?", a: 1703 },
+        { q: "Год начала Первой мировой войны?", a: 1914 },
+        { q: "В каком году распался СССР?", a: 1991 },
+        { q: "В каком году произошла Куликовская битва?", a: 1380 },
+        { q: "В каком году закончилась Вторая мировая война?", a: 1945 },
+        { q: "В каком году началась Отечественная война против Наполеона?", a: 1812 }
+    ];
+
+    let currentHistoryQuestion = null;
+    let historyInputValue = "";
+
+    function numpadPress(num) {
+        if (historyInputValue.length < 4) {
+            historyInputValue += num;
+            document.getElementById('historyDisplay').innerText = historyInputValue;
+            vibrate('light');
+        }
+    }
+
+    function numpadClear() {
+        historyInputValue = "";
+        document.getElementById('historyDisplay').innerText = "";
+        vibrate('light');
+    }
+
+    function loadHistoryQuestion() {
+        const randomIndex = Math.floor(Math.random() * historyQuestions.length);
+        currentHistoryQuestion = historyQuestions[randomIndex];
+        
+        document.getElementById('historyQuestion').innerText = currentHistoryQuestion.q;
+        numpadClear();
+        document.getElementById('historyFeedback').innerText = '';
+        document.getElementById('nextQuestionBtn').style.display = 'none';
+    }
+
+    function checkHistoryAnswer() {
+        if (!currentHistoryQuestion) return;
+        
+        const userAnswer = parseInt(historyInputValue);
+        const feedbackEl = document.getElementById('historyFeedback');
+        const nextBtn = document.getElementById('nextQuestionBtn');
+        
+        if (isNaN(userAnswer) || historyInputValue === "") {
+            feedbackEl.innerText = "Пожалуйста, введите год!";
+            feedbackEl.style.color = "var(--warning-text)";
+            vibrate('error');
+            return;
+        }
+
+        if (userAnswer === currentHistoryQuestion.a) {
+            feedbackEl.innerText = "🎉 Правильно! Это " + currentHistoryQuestion.a + " год.";
+            feedbackEl.style.color = "var(--success)";
+            nextBtn.style.display = 'block';
+            vibrate('success');
+        } else {
+            feedbackEl.innerText = "❌ Неверно. Попробуй еще раз!";
+            feedbackEl.style.color = "var(--warning-text)";
+            vibrate('error');
+        }
+    }
+
+    // Библиотека
+    const textbooksData = {
+        5: [
+            { t: "Беларуская мова (ч.1)", y: "2024", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_5kl_Valochka_ch1_2024.pdf" },
+            { t: "Беларуская мова (ч.2)", y: "2024", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_5kl_Valochka_ch2_2024.pdf" },
+            { t: "Беларуская літаратура (ч.1)", y: "2021", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/Bel_lit_5k_Zhukovich_ch1_bel_rus_2021.pdf" },
+            { t: "Беларуская літаратура (ч.2)", y: "2021", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/Bel_lit_5k_Zhukovich_ch2_bel_rus_2021.pdf" },
+            { t: "Русский язык (ч.1)", y: "2025", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_Murina_5kl_ch1_2025.pdf" },
+            { t: "Русский язык (ч.2)", y: "2019", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/rus_yaz_Murina_5kl_ch2_bel_rus_2019.pdf" },
+            { t: "Русская литература (ч.1)", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_mushinskaja_5k_ch1_bel_rus_2019.pdf" },
+            { t: "Русская литература (ч.2)", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_mushinskaja_5k_ch2_bel_rus_2019.pdf" },
+            { t: "Математика (ч.1)", y: "2025", l: "https://e-padruchnik.adu.by/books/matematika/Matematika_5kl_ch1_Gerasimov_rus_2025.pdf" },
+            { t: "Математика (ч.2)", y: "2020", l: "https://e-padruchnik.adu.by/books/matematika/Matematika_5kl_ch2_Gerasimov_rus_2020.pdf" },
+            { t: "Английский язык (ч.1)", y: "2017", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_gimnazii_Demchenko_5kl_bel_rus_ch1_2017.pdf" },
+            { t: "Английский язык (ч.2)", y: "2017", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_gimnazii_Demchenko_5kl_bel_rus_ch2_2017.pdf" },
+            { t: "Немецкий язык (ч.1)", y: "2020", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_5kl_ch1_Zuevskaya_rus_bel_2020.pdf" },
+            { t: "Немецкий язык (ч.2)", y: "2020", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_5kl_ch2_Zuevskaya_rus_bel_2020.pdf" }
+        ],
+        6: [
+            { t: "Беларуская мова", y: "2025", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_6kl_Valochka_2025.pdf" },
+            { t: "Беларуская літаратура", y: "2022", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/bel_lit_6kl_Belski_bel_rus_2022.pdf" },
+            { t: "Русский язык", y: "2020", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_6kl_Murina_rus_bel_2020.pdf" },
+            { t: "Русская литература (ч.1)", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_Zaharova_6kl_ch1_rus_bel_2019.pdf" },
+            { t: "Русская литература (ч.2)", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_Zaharova_6kl_ch2_rus_bel_2019.pdf" },
+            { t: "Математика", y: "2022", l: "https://e-padruchnik.adu.by/books/matematika/Matematika_6kl_Gerasimov_rus_2022.pdf" },
+            { t: "Информатика", y: "2024", l: "https://e-padruchnik.adu.by/books/informatika/Informatika_6kl_Kotov_rus_2024.pdf" },
+            { t: "Биология", y: "2021", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_Lisov_6kl_rus_2021.pdf" },
+            { t: "Английский язык (ч.1)", y: "2018", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_6kl_Demchenko_bel_rus_ch1_2018.pdf" },
+            { t: "Английский язык (ч.2)", y: "2018", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_6kl_Demchenko_bel_rus_ch2_2018.pdf" },
+            { t: "История Беларуси", y: "2023", l: "https://e-padruchnik.adu.by/books/istorija/Istoriya_Bel_sdr_dokonca15v_6kl_Temyshev_rus_2023.pdf" },
+            { t: "География", y: "2022", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_Kolmakova_6k_rus_2022.pdf" },
+            { t: "Немецкий язык (ч.1)", y: "2022", l: "https://e-padruchnik.adu.by/books/english/nemecki_yazik_Zuevskaya_6kl_ch1_bel_rus_2022.pdf" },
+            { t: "Немецкий язык (ч.2)", y: "2022", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_6kl_ch2_Zuevskaya_bel_rus_2022.pdf" }
+        ],
+        7: [
+            { t: "Беларуская мова", y: "2020", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_7kl_Valochka_rus_bel_2020.pdf" },
+            { t: "Беларуская літаратура", y: "2023", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/bel_lit_7kl_Lazaruk_rus_bel_2023.pdf" },
+            { t: "Русский язык", y: "2020", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_7kl_Volinec_rus_bel_2020.pdf" },
+            { t: "Русская литература (ч.1)", y: "2023", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_7kl_Zaharova_ch1_bel_rus_2023.pdf" },
+            { t: "Русская литература (ч.2)", y: "2023", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_Zaharova_6kl_ch2_rus_bel_2023.pdf" },
+            { t: "Алгебра", y: "2022", l: "https://e-padruchnik.adu.by/books/matematika/Algebra_7kl_Arefieva_rus_2022.pdf" },
+            { t: "Геометрия", y: "2022", l: "https://e-padruchnik.adu.by/books/matematika/Geometriya_7kl_Kazakov_rus_2022.pdf" },
+            { t: "Информатика", y: "2017", l: "https://e-padruchnik.adu.by/books/informatika/Informatika_Kotov_7kl_rus_2017.pdf" },
+            { t: "Физика", y: "2022", l: "https://e-padruchnik.adu.by/books/fizika/Fizika_Isachenkova_7kl_rus_2022.pdf" },
+            { t: "Биология", y: "2022", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_7kl_Lisov_rus_2022.pdf" },
+            { t: "Химия", y: "2023", l: "https://e-padruchnik.adu.by/books/himija/Himiya_7kl_Shimanovich_rus_2023.pdf" },
+            { t: "Английский язык (ч.1)", y: "2019", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_7kl_Demchenko_bel_rus_ch1_2019.pdf" },
+            { t: "Английский язык (ч.2)", y: "2019", l: "https://e-padruchnik.adu.by/books/english/angliski_yazik_7kl_Demchenko_bel_rus_ch2_2019.pdf" },
+            { t: "История Беларуси", y: "2017", l: "https://e-padruchnik.adu.by/books/istorija/Istoriya_Belarusi_XVI_XVIIIst_7k_Voronin_rus_2017.pdf" },
+            { t: "Всемирная история", y: "2024", l: "https://e-padruchnik.adu.by/books/istorija/vs_ist_7kl_koshelev_rus_2024.pdf" },
+            { t: "География", y: "2023", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_7kl_Kolmakova_rus_2023.pdf" },
+            { t: "Немецкий язык (ч.1)", y: "2019", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_Lapteva_7kl_bel_rus_ch1_2019.pdf" },
+            { t: "Немецкий язык (ч.2)", y: "2019", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_Lapteva_7kl_bel_rus_ch2_2019.pdf" }
+        ],
+        8: [
+            { t: "Беларуская мова", y: "2020", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_8kl_Badzevich_rus_bel_2020.pdf" },
+            { t: "Беларуская літаратура", y: "2024", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/Bel_lit_8kl_Lazaruk_2024.pdf" },
+            { t: "Русский язык", y: "2024", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_jaz_Murina_8kl_2024.pdf" },
+            { t: "Русская литература", y: "2025", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/Rus_lit_Zaharova_8kl_2025.pdf" },
+            { t: "Алгебра", y: "2024", l: "https://e-padruchnik.adu.by/books/matematika/Algebra_8kl_Arefieva_rus_2024.pdf" },
+            { t: "Геометрия", y: "2024", l: "https://e-padruchnik.adu.by/books/matematika/Geometriya_8kl_Kazakov_rus_2024.pdf" },
+            { t: "Информатика", y: "2018", l: "https://e-padruchnik.adu.by/books/informatika/Informatika_8kl_Kotov_rus_2018.pdf" },
+            { t: "Физика", y: "2024", l: "https://e-padruchnik.adu.by/books/fizika/Fizika_8kl_Isachenkova_rus_2024.pdf" },
+            { t: "Биология", y: "2023", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_8kl_Bedarik_rus_2023.pdf" },
+            { t: "Химия", y: "2024", l: "https://e-padruchnik.adu.by/books/himija/Himiya_8kl_Shimanovich_rus_2024.pdf" },
+            { t: "Английский язык (ч.1)", y: "2020", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_8kl_bel_rus_ch1_2020.pdf" },
+            { t: "Английский язык (ч.2)", y: "2020", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_8kl_bel_rus_ch2_2020.pdf" },
+            { t: "История Беларуси", y: "2018", l: "https://e-padruchnik.adu.by/books/istorija/Istoriya_Belarusi_kXVIII_nXXv_8kl_Panov_rus_2018.pdf" },
+            { t: "Всемирная история", y: "2018", l: "https://e-padruchnik.adu.by/books/istorija/vs_ist_novogo_vremeni_8kl_koshelev_rus_2018.pdf" },
+            { t: "География", y: "2019", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_8kl_Lopuh_rus_2019.pdf" },
+            { t: "Немецкий язык", y: "2025", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_Bydko_8kl_rus_2025.pdf" }
+        ],
+        9: [
+            { t: "Беларуская мова", y: "2025", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_Valochka_9kl_2025.pdf" },
+            { t: "Беларуская літаратура", y: "2019", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/bel-lit-ragojsha-9kl-bel-rus-2019.pdf" },
+            { t: "Русский язык", y: "2025", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_Murina_9kl_2025.pdf" },
+            { t: "Русская литература", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_Zaharova_9kl_rus_bel_2019.pdf" },
+            { t: "Алгебра", y: "2019", l: "https://e-padruchnik.adu.by/books/matematika/Algebra_Arefieva_9kl_rus_2019.pdf" },
+            { t: "Геометрия", y: "2025", l: "https://e-padruchnik.adu.by/books/matematika/Ge%D0%BEmetriya_Kazakoy_9kl_rus_2025.pdf" },
+            { t: "Информатика", y: "2019", l: "https://e-padruchnik.adu.by/books/informatika/informatika_9kl_Kotov_rus_2019.pdf" },
+            { t: "Физика", y: "2019", l: "https://e-padruchnik.adu.by/books/fizika/Fizika_Isachenkova_9_rus_2019.pdf" },
+            { t: "Биология", y: "2025", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_Borisov_9kl_rus_2025.pdf" },
+            { t: "Химия", y: "2025", l: "https://e-padruchnik.adu.by/books/himija/Himiya_Shimanovich_9kl_rus_2025.pdf" },
+            { t: "Английский язык (ч.1)", y: "2022", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_9kl_ch1_bel_rus_2022.pdf" },
+            { t: "Английский язык (ч.2)", y: "2022", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_9kl_ch2_bel_rus_2022.pdf" },
+            { t: "История Беларуси", y: "2019", l: "https://e-padruchnik.adu.by/books/istorija/Ist_Bel_1917_nXXI_9k_Panov_rus_2019.pdf" },
+            { t: "ВОВ советского народа", y: "2022", l: "https://e-padruchnik.adu.by/books/istorija/VOV_soveckogo_naroda_9kl_kovalenya_rus_2022.pdf" },
+            { t: "Всемирная история", y: "2019", l: "https://e-padruchnik.adu.by/books/istorija/vs_ist_noveishego_vremeni_Koshelev_9kl_2019.pdf" },
+            { t: "Обществоведение", y: "2019", l: "https://e-padruchnik.adu.by/books/obschestvovedenie/Obschestvovedenie_Danilov_9kl_rus.pdf" },
+            { t: "География", y: "2025", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_9kl_Brilevski_rus_2025.pdf" },
+            { t: "Немецкий язык", y: "2025", l: "https://e-padruchnik.adu.by/books/nemeckij/nemecki_yazik_Bydko_9kl_rus_2025.pdf" }
+        ],
+        10: [
+            { t: "Беларуская мова", y: "2020", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_10kl_Valochka_rus_bel_2020.pdf" },
+            { t: "Беларуская літаратура", y: "2020", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/bel_lit_10kl_Byazlipkina_bel_rus_2020.pdf" },
+            { t: "Русский язык", y: "2020", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_10kl_Leonovich_rus_bel_2020.pdf" },
+            { t: "Русская литература", y: "2019", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/Rus_lit_Zaharova_10kl_rus_bel_2019.pdf" },
+            { t: "Алгебра", y: "2019", l: "https://e-padruchnik.adu.by/books/matematika/Algebra_10k_Arefieva_rus_2019.pdf" },
+            { t: "Геометрия", y: "2020", l: "https://e-padruchnik.adu.by/books/matematika/Geometriya_10kl_Latotin_rus_2020.pdf" },
+            { t: "Информатика", y: "2020", l: "https://e-padruchnik.adu.by/books/informatika/Informatika_10kl_Kotov_rus_2020.pdf" },
+            { t: "Физика", y: "2019", l: "https://e-padruchnik.adu.by/books/fizika/Fizika_10kl_Gromika_rus_2019.pdf" },
+            { t: "Биология", y: "2020", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_10kl_Maglish_rus_2020.pdf" },
+            { t: "Химия", y: "2019", l: "https://e-padruchnik.adu.by/books/himija/Himiya_10kl_Kolevich_rus_2019.pdf" },
+            { t: "Английский язык (ч.1)", y: "2021", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_10kl_bel_rus_ch1_2021.pdf" },
+            { t: "Английский язык (ч.2)", y: "2021", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_10kl_bel_rus_ch2_2021.pdf" },
+            { t: "История Беларуси (ч.1)", y: "2024", l: "https://e-padruchnik.adu.by/books/istorija/Ist.Bel_v_kontekste_Vs_Ist_Kohanovski_10kl_ch1_2024.pdf" },
+            { t: "История Беларуси (ч.2)", y: "2024", l: "https://e-padruchnik.adu.by/books/istorija/Ist.Bel_v_kontekste_Vs_Ist_Kohanovski_10kl_ch2_2024.pdf" },
+            { t: "Обществоведение", y: "2020", l: "https://e-padruchnik.adu.by/books/obschestvovedenie/Obschestvovedenie_10kl_Danilov_rus_2020.pdf" },
+            { t: "География", y: "2019", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_10kl_Ancipova_rus_2019.pdf" },
+            { t: "Черчение", y: "2020", l: "https://e-padruchnik.adu.by/books/cherchenie/Cherchenie_10kl_Bezhenar_rus_2020.pdf" }
+        ],
+        11: [
+            { t: "Беларуская мова", y: "2021", l: "https://e-padruchnik.adu.by/books/belaruskaja-mova/Bel_mova_11kl_Valochka_rus_bel_2021.pdf" },
+            { t: "Беларуская літаратура", y: "2021", l: "https://e-padruchnik.adu.by/books/belaruskaja-litaratura/bel_lit_11kl_Melnikava_bel_rus_2021.pdf" },
+            { t: "Русский язык", y: "2021", l: "https://e-padruchnik.adu.by/books/russkij-jazyk/Rus_yaz_11kl_Dolbik_bel_rus_2021.pdf" },
+            { t: "Русская литература", y: "2021", l: "https://e-padruchnik.adu.by/books/russkaya-literatura/rus_lit_11k_Senkevich_rus_bel_2021.pdf" },
+            { t: "Алгебра", y: "2020", l: "https://e-padruchnik.adu.by/books/matematika/Algebra_11k_Arefieva_rus_2020.pdf" },
+            { t: "Геометрия", y: "2020", l: "https://e-padruchnik.adu.by/books/matematika/Geometriya_11kl_Latotin_rus_2020.pdf" },
+            { t: "Астрономия", y: "2021", l: "https://e-padruchnik.adu.by/books/astronomiya/Astronomiya_Galuzo_11_rus_2021.pdf" },
+            { t: "Информатика", y: "2021", l: "https://e-padruchnik.adu.by/books/informatika/Informatika_11kl_Kotov_rus_2021.pdf" },
+            { t: "Физика", y: "2021", l: "https://e-padruchnik.adu.by/books/fizika/Fizika_11kl_Zhilko_rus_2021.pdf" },
+            { t: "Биология", y: "2021", l: "https://e-padruchnik.adu.by/books/biologija/Biologiya_11k_Dashkov_rus_2021.pdf" },
+            { t: "Химия", y: "2021", l: "https://e-padruchnik.adu.by/books/himija/Himiya_11kl_Michko_rus_2021.pdf" },
+            { t: "Английский язык (ч.1)", y: "2022", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_11kl_bel_rus_ch1_2022.pdf" },
+            { t: "Английский язык (ч.2)", y: "2022", l: "https://e-padruchnik.adu.by/books/english/angliski_Demchenko_11kl_bel_rus_ch2_2022.pdf" },
+            { t: "История Беларуси (ч.1)", y: "2025", l: "https://e-padruchnik.adu.by/books/istorija/Ist.Bel_v_kontekste_Vs_Ist_Kohanovski_11kl_ch1_rus_2025.pdf" },
+            { t: "Обществоведение", y: "2021", l: "https://e-padruchnik.adu.by/books/obschestvovedenie/Obschestvovedenie_11kl_Chupris_rus_2021.pdf" },
+            { t: "География", y: "2021", l: "https://e-padruchnik.adu.by/books/geografija/Geografiya_Vitchenko_11kl_rus_2021.pdf" }
+        ]
+    };
+
+    function getEmoji(title) {
+        const t = title.toLowerCase();
+        if (t.includes('мат') || t.includes('алг') || t.includes('геом')) return '📐';
+        if (t.includes('бел') || t.includes('рус')) return '📕';
+        if (t.includes('лит')) return '📖';
+        if (t.includes('англ') || t.includes('нем')) return '🌍';
+        if (t.includes('ист')) return '📜';
+        if (t.includes('физ')) return '⚛️';
+        if (t.includes('хим')) return '🧪';
+        if (t.includes('био')) return '🌿';
+        if (t.includes('геогр')) return '🗺️';
+        if (t.includes('инф')) return '💻';
+        if (t.includes('астр')) return '🔭';
+        return '📘';
+    }
+
+    function initLibrary() {
+        const filterContainer = document.getElementById('gradeFilters');
+        if (!filterContainer) return;
+        filterContainer.innerHTML = '';
+        
+        // Добавляем фильтры по классам
+        for (let i = 5; i <= 11; i++) {
+            const chip = document.createElement('div');
+            chip.className = 'filter-chip';
+            chip.style.cssText = "padding: 8px 16px; background: white; border-radius: 12px; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 1.5px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.05);";
+            chip.innerText = i + ' класс';
+            chip.onclick = () => selectGrade(i, chip);
+            filterContainer.appendChild(chip);
+        }
+        
+        // Добавляем специальные фильтры
+        const rusLitChip = document.createElement('div');
+        rusLitChip.className = 'filter-chip';
+        rusLitChip.style.cssText = "padding: 8px 16px; background: white; border-radius: 12px; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 1.5px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.05);";
+        rusLitChip.innerText = 'Русская литература';
+        rusLitChip.onclick = () => filterBySubject('Русская литература', rusLitChip);
+        filterContainer.appendChild(rusLitChip);
+
+        const belLitChip = document.createElement('div');
+        belLitChip.className = 'filter-chip';
+        belLitChip.style.cssText = "padding: 8px 16px; background: white; border-radius: 12px; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 1.5px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.05);";
+        belLitChip.innerText = 'Белорусская литература';
+        belLitChip.onclick = () => filterBySubject('Белорусская литература', belLitChip);
+        filterContainer.appendChild(belLitChip);
+
+        selectGrade(5, filterContainer.firstChild);
+    }
+
+    function filterBySubject(subject, element) {
+        document.querySelectorAll('.filter-chip').forEach(c => {
+            c.style.background = 'white';
+            c.style.color = 'black';
+            c.style.borderColor = 'transparent';
+        });
+        if (element) {
+            element.style.background = 'var(--primary)';
+            element.style.color = 'white';
+            element.style.borderColor = 'var(--primary)';
+            vibrate('light');
+        }
+
+        const container = document.getElementById('booksContainer');
+        container.innerHTML = '';
+        
+        // Собираем все книги по всем классам
+        let allBooks = [];
+        for (let grade in textbooksData) {
+            allBooks = allBooks.concat(textbooksData[grade]);
+        }
+        
+        // Фильтруем по предмету
+        const filteredBooks = allBooks.filter(b => b.t.toLowerCase().includes(subject.toLowerCase()));
+        
+        if (filteredBooks.length === 0) {
+            container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--secondary);">Книги не найдены</div>';
+            return;
+        }
+
+        filteredBooks.forEach(b => {
+            const icon = getSubjectIcon(b.t);
+            container.innerHTML += `
+                <div class="book-card" onclick="window.open('${b.l}', '_blank')">
+                    <div class="book-icon">${icon}</div>
+                    <div class="book-title">${b.t}</div>
+                    <div class="book-year">${b.y}</div>
+                </div>
+            `;
+        });
+    }
+
+    function selectGrade(grade, element) {
+        document.querySelectorAll('.filter-chip').forEach(c => {
+            c.style.background = 'white';
+            c.style.color = 'black';
+            c.style.borderColor = 'transparent';
+        });
+        if (element) {
+            element.style.background = 'var(--accent)';
+            element.style.color = 'white';
+        }
+
+        const container = document.getElementById('booksContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        textbooksData[grade].forEach(book => {
+            const emoji = getEmoji(book.t);
+            container.innerHTML += `
+                <div class="book-card" style="background: white; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; align-items: center; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.03);">
+                    <div style="font-size: 32px; margin-bottom: 8px;">${emoji}</div>
+                    <div style="font-size: 12px; font-weight: 700; line-height: 1.2; height: 30px; overflow: hidden; margin-bottom: 4px;">${book.t}</div>
+                    <div style="font-size: 10px; color: var(--secondary); margin-bottom: 10px;">${book.y} г.</div>
+                    <button onclick="window.open('${book.l}', '_blank')" style="width: 100%; border: none; background: #f2f2f7; color: var(--accent); padding: 8px; border-radius: 10px; font-size: 11px; font-weight: 800; cursor: pointer;">ОТКРЫТЬ</button>
+                </div>
+            `;
+        });
+        vibrate('light');
+    }
+
+    // ИИ Чат
+    function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const chat = document.getElementById('chatMessages');
+        
+        // Сообщение пользователя
+        const userMsg = document.createElement('div');
+        userMsg.className = 'msg user';
+        userMsg.innerText = text;
+        chat.appendChild(userMsg);
+        
+        input.value = '';
+        chat.scrollTop = chat.scrollHeight;
+        vibrate('light');
+
+        // Имитация ответа ИИ
+        setTimeout(() => {
+            const aiMsg = document.createElement('div');
+            aiMsg.className = 'msg ai';
+            aiMsg.innerText = "Я пока что просто макет, но скоро научусь решать уравнения и писать сочинения! 😉";
+            chat.appendChild(aiMsg);
+            chat.scrollTop = chat.scrollHeight;
+            vibrate('medium');
+        }, 1000);
+    }
+
+    // LocalStorage: Заметки
+    function saveMemo() {
+        const val = document.getElementById('homeMemo').value;
+        localStorage.setItem('schoolHub_memo', val);
+    }
+    function loadMemo() {
+        const val = localStorage.getItem('schoolHub_memo');
+        if (val) document.getElementById('homeMemo').value = val;
+    }
+
+    // LocalStorage: Домашка
+    // --- РАСПИСАНИЕ И ДЗ ---
+    let scheduleData = JSON.parse(localStorage.getItem('schoolHub_schedule')) || [
+        { id: "day-1", name: "Понедельник", lessons: [{ id: "l-1-1", title: "1. Алгебра", hw: "№ 145", done: false }] },
+        { id: "day-2", name: "Вторник", lessons: [{ id: "l-2-1", title: "1. Геометрия", hw: "", done: false }] }
+    ];
+
+    // --- ЧЕТВЕРТИ (TERMS) ---
+    let termsData = JSON.parse(localStorage.getItem('schoolHub_terms')) || [
+        { id: 'term-1', name: '1-Я ЧЕТВЕРТЬ', start: '2023-09-01', end: '2023-10-28' },
+        { id: 'term-2', name: '2-Я ЧЕТВЕРТЬ', start: '2023-11-08', end: '2023-12-23' },
+        { id: 'term-3', name: '3-Я ЧЕТВЕРТЬ', start: '2024-01-08', end: '2024-03-23' },
+        { id: 'term-4', name: '4-Я ЧЕТВЕРТЬ', start: '2024-04-01', end: '2024-05-31' }
+    ];
+
+    function saveTerms() {
+        localStorage.setItem('schoolHub_terms', JSON.stringify(termsData));
+        updateHomeData();
+    }
+
+    function renderTerms() {
+        const container = document.getElementById('termsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        termsData.forEach((term) => {
+            container.innerHTML += `
+                <div style="display: flex; gap: 10px; align-items: center; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+                    <div style="font-weight: bold; font-size: 14px; width: 100px;">${term.name}</div>
+                    <input type="date" value="${term.start}" onchange="updateTerm('${term.id}', 'start', this.value)" style="padding: 5px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; flex: 1;">
+                    <span style="color: var(--secondary);">-</span>
+                    <input type="date" value="${term.end}" onchange="updateTerm('${term.id}', 'end', this.value)" style="padding: 5px; border: 1px solid #ddd; border-radius: 5px; font-size: 12px; flex: 1;">
+                </div>
+            `;
+        });
+    }
+
+    function updateTerm(id, field, value) {
+        const term = termsData.find(t => t.id === id);
+        if (term) {
+            term[field] = value;
+            saveTerms();
+        }
+    }
+
+    function saveSchedule() {
+        localStorage.setItem('schoolHub_schedule', JSON.stringify(scheduleData));
+        renderSchedule();
+        updateHomeData(); // Синхронизация с главной
+    }
+
+    function renderSchedule() {
+        const container = document.getElementById('scheduleContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        scheduleData.forEach((day, dayIndex) => {
+            let lessonsHtml = '';
+            day.lessons.forEach((lesson, lessonIndex) => {
+                lessonsHtml += `
+                    <div class="lesson-item" style="position: relative;">
+                        <div class="lesson-title" contenteditable="true" onblur="updateLesson('${day.id}', '${lesson.id}', 'title', this.innerText)">${lesson.title}</div>
+                        <div class="hw-box">
+                            <div class="hw-text" contenteditable="true" onblur="updateLesson('${day.id}', '${lesson.id}', 'hw', this.innerText)">${lesson.hw}</div>
+                            <input type="checkbox" class="hw-checkbox" ${lesson.done ? 'checked' : ''} onchange="updateLesson('${day.id}', '${lesson.id}', 'done', this.checked)">
+                        </div>
+                        <button onclick="deleteLesson('${day.id}', '${lesson.id}')" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 14px; color: var(--danger); cursor: pointer;">🗑️</button>
+                    </div>
+                `;
+            });
+
+            container.innerHTML += `
+                <div class="day-card">
+                    <div class="day-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span contenteditable="true" onblur="updateDayName('${day.id}', this.innerText)" onclick="event.stopPropagation()">${day.name}</span>
+                        <div>
+                            <button onclick="addLesson('${day.id}')" style="background: none; border: none; font-size: 16px; color: var(--accent); cursor: pointer; margin-right: 10px;">+</button>
+                            <button onclick="deleteDay('${day.id}')" style="background: none; border: none; font-size: 16px; color: var(--danger); cursor: pointer;">🗑️</button>
+                            <span onclick="toggleDay('${day.id}')" style="cursor: pointer; margin-left: 10px;">▼</span>
+                        </div>
+                    </div>
+                    <div class="day-content" id="day-${day.id}">
+                        ${lessonsHtml}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function addScheduleDay() {
+        showCustomPrompt('Введите день недели (например, Среда):', (name) => {
+            if (name) {
+                scheduleData.push({ id: "day-" + Date.now(), name: name, lessons: [] });
+                saveSchedule();
+                renderSchedule();
+                vibrate('medium');
+            }
+        });
+    }
+
+    function deleteDay(dayId) {
+        showCustomConfirm('Удалить этот день?', () => {
+            scheduleData = scheduleData.filter(d => d.id !== dayId);
+            saveSchedule();
+            renderSchedule();
+            vibrate('heavy');
+        });
+    }
+
+    function addLesson(dayId) {
+        const day = scheduleData.find(d => d.id === dayId);
+        if (day) {
+            day.lessons.push({ id: "l-" + Date.now(), title: (day.lessons.length + 1) + ". Предмет", hw: "", done: false });
+            saveSchedule();
+            renderSchedule();
+            vibrate('light');
+        }
+    }
+
+    function deleteLesson(dayId, lessonId) {
+        const day = scheduleData.find(d => d.id === dayId);
+        if (day) {
+            day.lessons = day.lessons.filter(l => l.id !== lessonId);
+            saveSchedule();
+            renderSchedule();
+            vibrate('medium');
+        }
+    }
+
+    function updateLesson(dayId, lessonId, field, value) {
+        const day = scheduleData.find(d => d.id === dayId);
+        if (day) {
+            const lesson = day.lessons.find(l => l.id === lessonId);
+            if (lesson) {
+                lesson[field] = value;
+                saveSchedule();
+                if (field === 'done') vibrate('light');
+            }
+        }
+    }
+
+    function updateDayName(dayId, newName) {
+        const day = scheduleData.find(d => d.id === dayId);
+        if (day) {
+            day.name = newName;
+            saveSchedule();
+        }
+    }
+
+    // Haptic Feedback
+    function vibrate(style) {
+        if(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred(style);
+        }
+    }
+
+    // --- МЕРОПРИЯТИЯ (EVENTS) ---
+    let eventsData = JSON.parse(localStorage.getItem('schoolHub_events')) || [
+        { id: "ev-1", title: "Школьная дискотека", date: "Пт, 18:00" },
+        { id: "ev-2", title: "Олимпиада по математике", date: "Сб, 10:00" }
+    ];
+
+    function saveEvents() {
+        localStorage.setItem('schoolHub_events', JSON.stringify(eventsData));
+        renderEvents();
+        updateHomeData();
+    }
+
+    function renderEvents() {
+        const container = document.getElementById('eventsList');
+        if (!container) return;
+        container.innerHTML = '';
+        eventsData.forEach(ev => {
+            container.innerHTML += `
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 10px; background: #f9f9f9; border-radius: 8px;">
+                    <div style="flex: 1;">
+                        <div contenteditable="true" onblur="updateEvent('${ev.id}', 'title', this.innerText)" style="font-weight: 600; margin-bottom: 4px;">${ev.title}</div>
+                        <div contenteditable="true" onblur="updateEvent('${ev.id}', 'date', this.innerText)" style="color: var(--primary); font-size: 12px;">${ev.date}</div>
+                    </div>
+                    <button onclick="deleteEvent('${ev.id}')" style="background: none; border: none; font-size: 16px; color: var(--danger); cursor: pointer;">🗑️</button>
+                </div>
+            `;
+        });
+    }
+
+    function addEvent() {
+        const titleInput = document.getElementById('newEventTitle');
+        const dateInput = document.getElementById('newEventDate');
+        const title = titleInput.value.trim();
+        const date = dateInput.value.trim();
+        
+        if (title && date) {
+            eventsData.push({ id: "ev-" + Date.now(), title, date });
+            titleInput.value = '';
+            dateInput.value = '';
+            saveEvents();
+            vibrate('light');
+        }
+    }
+
+    function updateEvent(id, field, value) {
+        const ev = eventsData.find(e => e.id === id);
+        if (ev) {
+            ev[field] = value;
+            saveEvents();
+        }
+    }
+
+    function deleteEvent(id) {
+        showCustomConfirm('Удалить мероприятие?', () => {
+            eventsData = eventsData.filter(e => e.id !== id);
+            saveEvents();
+            vibrate('medium');
+        });
+    }
+
+    // --- TO-DO ЛИСТ ---
+    let todoData = JSON.parse(localStorage.getItem('schoolHub_todo')) || [];
+
+    function saveTodo() {
+        localStorage.setItem('schoolHub_todo', JSON.stringify(todoData));
+        renderTodo();
+    }
+
+    function renderTodo() {
+        const container = document.getElementById('todoList');
+        if (!container) return;
+        container.innerHTML = '';
+        todoData.forEach(task => {
+            container.innerHTML += `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f9f9f9; border-radius: 8px; ${task.done ? 'opacity: 0.6;' : ''}">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTodo('${task.id}', this.checked)" style="width: 18px; height: 18px; accent-color: var(--primary);">
+                        <span contenteditable="true" onblur="updateTodo('${task.id}', this.innerText)" style="font-size: 15px; flex: 1; ${task.done ? 'text-decoration: line-through;' : ''}">${task.title}</span>
+                    </div>
+                    <button onclick="deleteTodo('${task.id}')" style="background: none; border: none; font-size: 16px; color: var(--danger); cursor: pointer;">🗑️</button>
+                </div>
+            `;
+        });
+    }
+
+    function addTodo() {
+        const input = document.getElementById('newTodoInput');
+        const title = input.value.trim();
+        if (title) {
+            todoData.push({ id: "todo-" + Date.now(), title, done: false });
+            input.value = '';
+            saveTodo();
+            vibrate('light');
+        }
+    }
+
+    function toggleTodo(id, done) {
+        const task = todoData.find(t => t.id === id);
+        if (task) {
+            task.done = done;
+            saveTodo();
+            vibrate('light');
+        }
+    }
+
+    function updateTodo(id, title) {
+        const task = todoData.find(t => t.id === id);
+        if (task) {
+            task.title = title;
+            saveTodo();
+        }
+    }
+
+    function deleteTodo(id) {
+        todoData = todoData.filter(t => t.id !== id);
+        saveTodo();
+        vibrate('medium');
+    }
+
+    // --- СЛОВО ДНЯ ---
+    const wordsOfDay = [
+        { title: "Эмпатия", desc: "Осознанное сопереживание текущему эмоциональному состоянию другого человека." },
+        { title: "Прокрастинация", desc: "Склонность к постоянному откладыванию даже важных и срочных дел." },
+        { title: "Амбивалентность", desc: "Двойственность отношения к чему-либо, одновременное принятие и отвержение." },
+        { title: "Инсайт", desc: "Внезапное осознание, озарение, понимание сути проблемы." },
+        { title: "Когнитивный диссонанс", desc: "Состояние психического дискомфорта, вызванное столкновением в сознании конфликтующих представлений." },
+        { title: "Сингулярность", desc: "Единичность, неповторимость чего-либо." },
+        { title: "Апатия", desc: "Состояние полного безразличия, безучастности." }
+    ];
+
+    function updateWordOfDay() {
+        const today = new Date();
+        const index = today.getDate() % wordsOfDay.length;
+        const word = wordsOfDay[index];
+        const titleEl = document.getElementById('wordOfDayTitle');
+        const descEl = document.getElementById('wordOfDayDesc');
+        if (titleEl && descEl) {
+            titleEl.innerText = word.title;
+            descEl.innerText = word.desc;
+        }
+    }
+
+    // --- ИИ-ПОМОЩНИК ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        }
+    });
+
+    function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const messagesContainer = document.getElementById('chatMessages');
+        
+        // Добавляем сообщение пользователя
+        const userMsg = document.createElement('div');
+        userMsg.className = 'msg user';
+        userMsg.innerText = text;
+        messagesContainer.appendChild(userMsg);
+        
+        input.value = '';
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        vibrate('light');
+
+        // Имитация ответа ИИ
+        setTimeout(() => {
+            const aiMsg = document.createElement('div');
+            aiMsg.className = 'msg ai';
+            aiMsg.innerText = "Я пока только учусь, но скоро смогу ответить на твой вопрос: \"" + text + "\"!";
+            messagesContainer.appendChild(aiMsg);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            vibrate('success');
+        }, 1000);
+    }
+
+    // --- ИСТОРИЯ (ДАТЫ) ---
+    function initHistoryDates() {
+        const container = document.getElementById('historyDatesList');
+        if (!container) return;
+        container.innerHTML = '';
+        historyQuestions.forEach(q => {
+            container.innerHTML += `
+                <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between;">
+                    <span style="font-size: 14px;">${q.q.replace('В каком году ', '').replace('?', '')}</span>
+                    <b style="color: var(--primary);">${q.a}</b>
+                </div>
+            `;
+        });
+    }
+
+    // --- ГЕОГРАФИЯ ---
+    const geoQuestions = [
+        { q: "Столица Франции?", options: ["Париж", "Лондон", "Берлин", "Мадрид"], a: "Париж" },
+        { q: "Столица Японии?", options: ["Сеул", "Пекин", "Токио", "Бангкок"], a: "Токио" },
+        { q: "Какая страна имеет столицу Рим?", options: ["Греция", "Испания", "Италия", "Франция"], a: "Италия" },
+        { q: "Столица Австралии?", options: ["Сидней", "Мельбурн", "Канберра", "Брисбен"], a: "Канберра" },
+        { q: "Столица Канады?", options: ["Торонто", "Ванкувер", "Монреаль", "Оттава"], a: "Оттава" },
+        { q: "Столица Бразилии?", options: ["Рио-де-Жанейро", "Сан-Паулу", "Бразилиа", "Буэнос-Айрес"], a: "Бразилиа" },
+        { q: "Какая страна имеет столицу Мадрид?", options: ["Португалия", "Испания", "Мексика", "Аргентина"], a: "Испания" },
+        { q: "Столица Египта?", options: ["Каир", "Александрия", "Луксор", "Гиза"], a: "Каир" }
+    ];
+    let currentGeoQuestion = null;
+
+    function initGeography() {
+        loadGeoQuestion();
+    }
+
+    function loadGeoQuestion() {
+        const randomIndex = Math.floor(Math.random() * geoQuestions.length);
+        currentGeoQuestion = geoQuestions[randomIndex];
+        
+        document.getElementById('geoQuestion').innerText = currentGeoQuestion.q;
+        const optionsContainer = document.getElementById('geoOptions');
+        optionsContainer.innerHTML = '';
+        
+        // Перемешиваем варианты
+        const shuffledOptions = [...currentGeoQuestion.options].sort(() => Math.random() - 0.5);
+        
+        shuffledOptions.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'add-subject-btn';
+            btn.style.margin = '0';
+            btn.style.background = '#f2f2f7';
+            btn.style.color = '#000';
+            btn.innerText = opt;
+            btn.onclick = () => checkGeoAnswer(opt, btn);
+            optionsContainer.appendChild(btn);
+        });
+        
+        document.getElementById('geoFeedback').innerText = '';
+        document.getElementById('nextGeoBtn').style.display = 'none';
+    }
+
+    function checkGeoAnswer(selectedOption, btnElement) {
+        const feedbackEl = document.getElementById('geoFeedback');
+        const nextBtn = document.getElementById('nextGeoBtn');
+        const optionsContainer = document.getElementById('geoOptions');
+        
+        // Блокируем все кнопки
+        Array.from(optionsContainer.children).forEach(btn => {
+            btn.disabled = true;
+            if (btn.innerText === currentGeoQuestion.a) {
+                btn.style.background = 'var(--success)';
+                btn.style.color = 'white';
+            } else if (btn === btnElement) {
+                btn.style.background = 'var(--danger)';
+                btn.style.color = 'white';
+            }
+        });
+
+        if (selectedOption === currentGeoQuestion.a) {
+            feedbackEl.innerText = "🎉 Правильно!";
+            feedbackEl.style.color = "var(--success)";
+            vibrate('success');
+        } else {
+            feedbackEl.innerText = "❌ Неправильно. Правильный ответ: " + currentGeoQuestion.a;
+            feedbackEl.style.color = "var(--danger)";
+            vibrate('error');
+        }
+        
+        nextBtn.style.display = 'block';
+    }
+
+    // --- ПРОФОРИЕНТАЦИЯ ---
+    const careerQuestions = [
+        { q: "Что тебе больше нравится?", options: ["Решать задачи и программировать", "Рисовать и создавать дизайн", "Общаться с людьми и помогать им", "Изучать природу и животных"] },
+        { q: "Твой любимый школьный предмет?", options: ["Математика / Информатика", "ИЗО / Литература", "Обществознание / История", "Биология / Химия"] },
+        { q: "Как ты предпочитаешь работать?", options: ["В одиночку за компьютером", "В творческой студии", "В команде, общаясь с клиентами", "В лаборатории или на природе"] }
+    ];
+    let currentCareerStep = 0;
+    let careerScores = { tech: 0, creative: 0, social: 0, science: 0 };
+
+    function startCareerTest() {
+        currentCareerStep = 0;
+        careerScores = { tech: 0, creative: 0, social: 0, science: 0 };
+        document.getElementById('careerResultContainer').style.display = 'none';
+        document.getElementById('careerTestContainer').style.display = 'block';
+        loadCareerQuestion();
+    }
+
+    function loadCareerQuestion() {
+        if (currentCareerStep >= careerQuestions.length) {
+            showCareerResult();
+            return;
+        }
+        
+        const q = careerQuestions[currentCareerStep];
+        document.getElementById('careerQuestion').innerText = `Вопрос ${currentCareerStep + 1} из ${careerQuestions.length}:\n${q.q}`;
+        
+        const optionsContainer = document.getElementById('careerOptions');
+        optionsContainer.innerHTML = '';
+        
+        const categories = ['tech', 'creative', 'social', 'science'];
+        
+        q.options.forEach((opt, index) => {
+            const btn = document.createElement('button');
+            btn.className = 'add-subject-btn';
+            btn.style.margin = '0';
+            btn.style.background = '#f2f2f7';
+            btn.style.color = '#000';
+            btn.innerText = opt;
+            btn.onclick = () => {
+                careerScores[categories[index]]++;
+                currentCareerStep++;
+                vibrate('light');
+                loadCareerQuestion();
+            };
+            optionsContainer.appendChild(btn);
+        });
+    }
+
+    function showCareerResult() {
+        document.getElementById('careerTestContainer').style.display = 'none';
+        document.getElementById('careerResultContainer').style.display = 'block';
+        
+        let maxCategory = 'tech';
+        let maxScore = careerScores.tech;
+        for (const [cat, score] of Object.entries(careerScores)) {
+            if (score > maxScore) {
+                maxScore = score;
+                maxCategory = cat;
+            }
+        }
+        
+        const results = {
+            tech: { icon: "💻", title: "IT и Инженерия", desc: "Тебе отлично подойдут профессии программиста, инженера, аналитика данных или системного администратора." },
+            creative: { icon: "🎨", title: "Творчество и Дизайн", desc: "Обрати внимание на профессии дизайнера, художника, писателя, архитектора или маркетолога." },
+            social: { icon: "🤝", title: "Общение и Помощь", desc: "Тебе подойдут профессии психолога, учителя, врача, менеджера по персоналу или юриста." },
+            science: { icon: "🔬", title: "Наука и Исследования", desc: "Твое призвание — наука! Рассмотри профессии биолога, химика, эколога или исследователя." }
+        };
+        
+        const res = results[maxCategory];
+        document.getElementById('careerResultIcon').innerText = res.icon;
+        document.getElementById('careerResultTitle').innerText = res.title;
+        document.getElementById('careerResultText').innerText = res.desc;
+        vibrate('success');
+    }
+
+    // --- ПРОДУКТИВНОСТЬ (ПОМОДОРО) ---
+    let pomodoroTime = 25 * 60;
+    let pomodoroInterval = null;
+    let isPomodoroRunning = false;
+    let isWorkMode = true;
+
+    function updateTimerSettings() {
+        if (isPomodoroRunning) return; // Не меняем во время работы
+        const workInput = document.getElementById('workTimeInput');
+        const breakInput = document.getElementById('breakTimeInput');
+        
+        let workMins = parseInt(workInput.value);
+        let breakMins = parseInt(breakInput.value);
+        
+        if (isNaN(workMins) || workMins < 1) workMins = 25;
+        if (isNaN(breakMins) || breakMins < 1) breakMins = 5;
+        
+        if (isWorkMode) {
+            pomodoroTime = workMins * 60;
+        } else {
+            pomodoroTime = breakMins * 60;
+        }
+        updatePomodoroDisplay();
+    }
+
+    function updatePomodoroDisplay() {
+        const m = Math.floor(pomodoroTime / 60).toString().padStart(2, '0');
+        const s = (pomodoroTime % 60).toString().padStart(2, '0');
+        document.getElementById('pomodoroTimer').innerText = `${m}:${s}`;
+    }
+
+    function togglePomodoro() {
+        const btn = document.getElementById('pomodoroStartBtn');
+        const workInput = document.getElementById('workTimeInput');
+        const breakInput = document.getElementById('breakTimeInput');
+        
+        let workMins = parseInt(workInput.value) || 25;
+        let breakMins = parseInt(breakInput.value) || 5;
+
+        if (isPomodoroRunning) {
+            clearInterval(pomodoroInterval);
+            isPomodoroRunning = false;
+            btn.innerText = "Старт";
+            btn.style.background = "var(--primary)";
+        } else {
+            isPomodoroRunning = true;
+            btn.innerText = "Пауза";
+            btn.style.background = "var(--warning-text)";
+            vibrate('light');
+            
+            pomodoroInterval = setInterval(() => {
+                if (pomodoroTime > 0) {
+                    pomodoroTime--;
+                    updatePomodoroDisplay();
+                } else {
+                    clearInterval(pomodoroInterval);
+                    isPomodoroRunning = false;
+                    vibrate('heavy');
+                    
+                    if (isWorkMode) {
+                        isWorkMode = false;
+                        pomodoroTime = breakMins * 60; // отдых
+                        document.getElementById('pomodoroStatus').innerText = "Время отдыха!";
+                        document.getElementById('pomodoroStatus').style.color = "var(--success)";
+                    } else {
+                        isWorkMode = true;
+                        pomodoroTime = workMins * 60; // работа
+                        document.getElementById('pomodoroStatus').innerText = "Режим работы";
+                        document.getElementById('pomodoroStatus').style.color = "var(--secondary)";
+                    }
+                    updatePomodoroDisplay();
+                    btn.innerText = "Старт";
+                    btn.style.background = "var(--primary)";
+                }
+            }, 1000);
+        }
+    }
+
+    function resetPomodoro() {
+        clearInterval(pomodoroInterval);
+        isPomodoroRunning = false;
+        isWorkMode = true;
+        
+        const workInput = document.getElementById('workTimeInput');
+        let workMins = parseInt(workInput.value) || 25;
+        
+        pomodoroTime = workMins * 60;
+        document.getElementById('pomodoroStatus').innerText = "Режим работы";
+        document.getElementById('pomodoroStatus').style.color = "var(--secondary)";
+        document.getElementById('pomodoroStartBtn').innerText = "Старт";
+        document.getElementById('pomodoroStartBtn').style.background = "var(--primary)";
+        updatePomodoroDisplay();
+        vibrate('light');
+    }
+</script>
+
+</body>
+</html>
+
